@@ -63,6 +63,7 @@ private:
     uint32_t renderedSpecVersion = 0, renderedMaskVersion = 0;
     juce::uint32 lastSpecRenderMs = 0;
     bool specDirty = true, overlayDirty = true;
+    SpectrogramStore::View renderedView; // the window the cached images were rendered for
     int overlayDirtyX0 = 0, overlayDirtyX1 = -1;
 
     float brushRadius = 20.0f, hardness = 0.5f;

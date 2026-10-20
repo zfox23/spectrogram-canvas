@@ -181,6 +181,16 @@ void SpectrogramView::paint (juce::Graphics& g)
         specDirty = overlayDirty = true;
     }
 
+    // Zooming, panning, scrubbing from the overview or switching scale all change the window.
+    if (sv.startSeconds != renderedView.startSeconds || sv.endSeconds != renderedView.endSeconds
+        || sv.normLow != renderedView.normLow || sv.normHigh != renderedView.normHigh
+        || sv.scale.type != renderedView.scale.type || sv.scale.minHz != renderedView.scale.minHz
+        || sv.scale.maxHz != renderedView.scale.maxHz)
+    {
+        specDirty = overlayDirty = true;
+        renderedView = sv;
+    }
+
     if (specDirty)
     {
         if (spec != nullptr)
@@ -264,15 +274,50 @@ void SpectrogramView::drawRulers (juce::Graphics& g, juce::Rectangle<int> plot)
 
     // Frequency ruler.
     {
-        static const double candidates[] = { 20, 30, 50, 70, 100, 150, 200, 300, 500, 700, 1000, 1500, 2000, 3000, 4000,
-                                             5000, 6000, 7000, 8000, 10000, 12000, 14000, 16000, 18000, 20000, 22000, 24000 };
+        // Try progressively finer steps (1-2-5 per decade, then 1..9, then halves) and keep the
+        // finest set whose labels don't collide, so zooming in reveals more labels.
+        static const std::vector<std::vector<double>> mantissaSets = {
+            { 1, 2, 5 }, { 1, 1.5, 2, 3, 5, 7 }, { 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9 },
+            { 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2, 2.2, 2.4, 2.6, 2.8, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5 }
+        };
+
+        auto ticksFor = [&] (const std::vector<double>& mantissas) {
+            std::vector<double> ticks;
+            for (double decade = 10.0; decade <= 10000.0; decade *= 10.0)
+                for (double m : mantissas)
+                {
+                    const double hz = m * decade;
+                    if (hz >= view.scale.minHz && hz <= view.scale.maxHz)
+                    {
+                        const float y = hzToY (hz);
+                        if (y >= (float) plot.getY() && y <= (float) plot.getBottom())
+                            ticks.push_back (hz);
+                    }
+                }
+            return ticks;
+        };
+
+        auto fits = [&] (const std::vector<double>& ticks) {
+            for (size_t i = 1; i < ticks.size(); ++i)
+                if (hzToY (ticks[i - 1]) - hzToY (ticks[i]) < 16.0f)
+                    return false;
+            return true;
+        };
+
+        std::vector<double> candidates = ticksFor (mantissaSets[0]);
+        for (size_t i = 1; i < mantissaSets.size(); ++i)
+        {
+            auto finer = ticksFor (mantissaSets[i]);
+            if (! fits (finer))
+                break;
+            candidates = std::move (finer);
+        }
+
         float lastY = 1.0e9f;
         for (double hz : candidates)
         {
-            if (hz > view.scale.maxHz)
-                break;
             const float y = hzToY (hz);
-            if (y < (float) plot.getY() || y > (float) plot.getBottom() || lastY - y < 18.0f)
+            if (lastY - y < 16.0f)
                 continue;
             lastY = y;
             g.setColour (Theme::grid);

@@ -104,6 +104,15 @@ int main (int argc, char** argv)
     // Pump the message loop so the editor's timer runs and the views render.
     juce::MessageManager::getInstance()->runDispatchLoopUntil (800);
 
+    // "zoom": after the first render, zoom to 3-4 s and 400-1200 Hz (log), as a user would.
+    if (options.contains ("zoom"))
+    {
+        auto& vs = dynamic_cast<SpectrogramDrawFilterEditor&> (*editor).getViewState();
+        vs.setTimeRange (3.0, 4.0);
+        vs.setFreqRange (vs.scale.hzToNorm (400.0), vs.scale.hzToNorm (1200.0));
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (400);
+    }
+
     const auto image = editor->createComponentSnapshot (editor->getLocalBounds(), true, 1.0f);
     out.deleteFile();
     juce::FileOutputStream stream (out);

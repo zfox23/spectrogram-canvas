@@ -22,6 +22,8 @@ public:
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
 
+    ViewState& getViewState() { return viewState; }
+
 private:
     void timerCallback() override;
     void syncSession();
