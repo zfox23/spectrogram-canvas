@@ -4,6 +4,7 @@
 
 #include <memory>
 
+#include "host/HostLoop.h"
 #include "session/Session.h"
 #include "ui/ViewState.h"
 
@@ -22,6 +23,14 @@ public:
     void setInvert (bool shouldInvert);
     void refresh (juce::int64 playheadSample, double sampleRate, bool showPlayhead);
     void viewChanged() { repaint(); }
+    void setLoopRange (const LoopRange& range)
+    {
+        if (range != loopRange)
+        {
+            loopRange = range;
+            repaint();
+        }
+    }
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -53,6 +62,7 @@ private:
     Drag drag = Drag::none;
     double dragStartSeconds = 0.0, dragStartEnd = 0.0;
     float playheadX = -1.0f;
+    LoopRange loopRange;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OverviewView)
 };

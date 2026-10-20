@@ -122,6 +122,7 @@ juce::int64 SpectrogramDrawFilterProcessor::resolveTimeline (int numSamples, boo
         hasPlayHead = true;
         if (const auto pos = ph->getPosition())
         {
+            hostLoop.updateFromPlayHead (*pos);
             playing = pos->getIsPlaying();
             if (const auto t = pos->getTimeInSamples())
             {

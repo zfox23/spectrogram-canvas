@@ -6,6 +6,7 @@
 #include <memory>
 
 #include "dsp/SpectralMaskProcessor.h"
+#include "host/HostLoop.h"
 #include "session/Session.h"
 
 namespace sdf
@@ -53,6 +54,7 @@ public:
     using AudioProcessor::processBlock;
 
     juce::AudioProcessorEditor* createEditor() override;
+    juce::VST3ClientExtensions* getVST3ClientExtensions() override { return &hostLoop; }
     bool hasEditor() const override { return true; }
 
     const juce::String getName() const override { return JucePlugin_Name; }
@@ -81,6 +83,9 @@ public:
     juce::int64 getTimelinePosition() const { return diagnostics.timelinePosition.load(); }
     double getCurrentSampleRate() const { return diagnostics.sampleRate.load(); }
 
+    /** Message thread: the host's loop range (REAPER: exact and live; others: from the play head). */
+    LoopRange getLoopRange() const { return hostLoop.get(); }
+
     /** UI-only state that is saved with the plugin (brush size, view, ...). */
     juce::ValueTree& getUiState() { return uiState; }
 
@@ -102,6 +107,7 @@ private:
 
     SpectralMaskProcessor spectral;
     HostDiagnostics diagnostics;
+    HostLoop hostLoop;
     juce::ValueTree uiState { "UI" };
 
     juce::AudioBuffer<float> monoScratch;

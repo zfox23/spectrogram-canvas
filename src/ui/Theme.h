@@ -15,9 +15,36 @@ inline const juce::Colour paint { 0xff4cc9f0 };
 inline const juce::Colour erase { 0xffff6b6b };
 inline const juce::Colour record { 0xffe5383b };
 inline const juce::Colour playhead { 0xffffffff };
+inline const juce::Colour loop { 0xffffc857 };
 
 inline constexpr int rulerWidth = 46;
 inline constexpr int rulerHeight = 20;
+
+/**
+    Draws the host's loop range over a plot: a marker bar along the top, edge lines, and a faint
+    tint between them. Drawn dimmer when the host's repeat is off.
+*/
+inline void drawLoopRange (juce::Graphics& g, juce::Rectangle<int> plot, float x0, float x1, bool repeatEnabled, float barHeight)
+{
+    if (x1 < (float) plot.getX() || x0 > (float) plot.getRight())
+        return;
+
+    juce::Graphics::ScopedSaveState ss (g);
+    g.reduceClipRegion (plot);
+
+    const float alpha = repeatEnabled ? 1.0f : 0.5f;
+    const float top = (float) plot.getY(), bottom = (float) plot.getBottom();
+
+    g.setColour (loop.withAlpha (0.07f * alpha));
+    g.fillRect (juce::Rectangle<float> (x0, top, x1 - x0, bottom - top));
+
+    g.setColour (loop.withAlpha (0.9f * alpha));
+    g.fillRect (juce::Rectangle<float> (x0, top, x1 - x0, barHeight));
+
+    g.setColour (loop.withAlpha (0.75f * alpha));
+    g.drawVerticalLine (juce::roundToInt (x0), top, bottom);
+    g.drawVerticalLine (juce::roundToInt (x1) - 1, top, bottom);
+}
 
 class LookAndFeel : public juce::LookAndFeel_V4
 {

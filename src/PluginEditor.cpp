@@ -313,6 +313,10 @@ void SpectrogramDrawFilterEditor::timerCallback()
 
     updateDocumentLength();
 
+    const auto loop = processor.getLoopRange();
+    spectrogramView.setLoopRange (loop);
+    overview.setLoopRange (loop);
+
     juce::String overlay;
     if (session->isLoading())
         overlay = "Loading captured audio...";
@@ -357,6 +361,11 @@ juce::String SpectrogramDrawFilterEditor::buildDiagnosticsText() const
       << "prepare: " << d.prepareCount.load() << "   reset: " << d.resetCount.load()
       << "   timeline jumps: " << d.timelineJumps.load() << "\n"
       << "Latency: " << processor.getLatencySamples() << " samples\n";
+
+    const auto loop = processor.getLoopRange();
+    t << "Loop: " << (loop.valid ? juce::String (loop.startSeconds, 3) + " - " + juce::String (loop.endSeconds, 3) + " s"
+                                 : juce::String ("none"))
+      << (loop.valid ? (loop.repeatEnabled ? "  (repeat on)" : "  (repeat off)") : "") << "\n";
 
     if (session != nullptr)
     {

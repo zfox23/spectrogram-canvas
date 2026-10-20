@@ -121,6 +121,10 @@ void OverviewView::paint (juce::Graphics& g)
 
     g.drawImageAt (image, plot.getX(), plot.getY());
 
+    if (loopRange.valid)
+        Theme::drawLoopRange (g, plot, secondsToX (loopRange.startSeconds), secondsToX (loopRange.endSeconds),
+                              loopRange.repeatEnabled, 4.0f);
+
     // Dim everything outside the main view's window.
     const auto win = getWindowRect();
     g.setColour (juce::Colours::black.withAlpha (0.5f));

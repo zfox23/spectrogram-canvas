@@ -4,6 +4,7 @@
 
 #include <memory>
 
+#include "host/HostLoop.h"
 #include "session/Session.h"
 #include "ui/ViewState.h"
 
@@ -28,6 +29,7 @@ public:
     void setHardness (float h) { hardness = h; }
     void setInvert (bool shouldInvert);
     void setOverlayText (const juce::String& text);
+    void setLoopRange (const LoopRange& range);
 
     std::function<void (float)> onBrushRadiusChanged;
 
@@ -90,6 +92,7 @@ private:
 
     float playheadX = -1.0f;
     juce::String overlayText;
+    LoopRange loopRange;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SpectrogramView)
 };

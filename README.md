@@ -61,6 +61,9 @@ Notes:
   plugin window first, or use the **Undo/Redo** buttons. To give the plugin all key presses, enable
   *Send all keyboard input to plug-in* in the FX window's menu.
 - Duplicating the track or copying the FX gives the copy its own independent painting and capture.
+- REAPER's loop points are shown on the spectrogram and the overview: an amber bar along the top with
+  edge lines, drawn dimmer when repeat is off. They update live, even while stopped. Other hosts show
+  their loop range while playing, if they report one.
 - With *anticipative FX processing* on, the playhead line in the plugin may run slightly ahead of Reaper's.
   This doesn't affect what you hear.
 - The plugin adds latency equal to the FFT size, and Reaper compensates for it automatically.

@@ -69,6 +69,32 @@ int main (int argc, char** argv)
     }
     session->setArmed (false);
 
+    // "loop": process one block with a play head that reports loop points of 2-5 s
+    // (in quarter notes at 120 BPM), exercising the non-REAPER loop path.
+    struct LoopingPlayHead : juce::AudioPlayHead
+    {
+        juce::int64 time = 0;
+        juce::Optional<PositionInfo> getPosition() const override
+        {
+            PositionInfo info;
+            info.setTimeInSamples (time);
+            info.setTimeInSeconds ((double) time / 44100.0);
+            info.setBpm (120.0);
+            info.setPpqPosition ((double) time / 44100.0 * 2.0);
+            info.setLoopPoints (LoopPoints { 4.0, 10.0 });
+            info.setIsLooping (true);
+            return info;
+        }
+    } loopingPlayHead;
+
+    if (options.contains ("loop"))
+    {
+        loopingPlayHead.time = total;
+        proc.setPlayHead (&loopingPlayHead);
+        buffer.clear();
+        proc.processBlock (buffer, midi);
+    }
+
     // Paint a stroke along the 3rd harmonic (660 Hz) from 1 s to 6 s.
     MaskGrid::ScreenMapping m;
     m.secondsToX = [] (double s) { return s * 100.0; };

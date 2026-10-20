@@ -83,6 +83,15 @@ void SpectrogramView::setInvert (bool shouldInvert)
     }
 }
 
+void SpectrogramView::setLoopRange (const LoopRange& range)
+{
+    if (range != loopRange)
+    {
+        loopRange = range;
+        repaint();
+    }
+}
+
 void SpectrogramView::setOverlayText (const juce::String& text)
 {
     if (text != overlayText)
@@ -326,6 +335,10 @@ void SpectrogramView::paintDecorations (juce::Graphics& g, juce::Rectangle<int> 
         const float endX = secondsToX (view.totalSeconds);
         if (endX < (float) plot.getRight())
             g.fillRect (juce::Rectangle<float> (endX, (float) plot.getY(), (float) plot.getRight() - endX, (float) plot.getHeight()));
+
+        if (loopRange.valid)
+            Theme::drawLoopRange (g, plot, secondsToX (loopRange.startSeconds), secondsToX (loopRange.endSeconds),
+                                  loopRange.repeatEnabled, 5.0f);
 
         if (playheadX >= 0.0f)
         {
