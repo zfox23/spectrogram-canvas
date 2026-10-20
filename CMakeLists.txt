@@ -33,11 +33,16 @@ juce_add_plugin(SpectrogramDrawFilter
 
 # Core sources shared by the plugin and the unit tests.
 set(SDF_CORE_SOURCES
+    src/analysis/SpectrogramStore.cpp
+    src/capture/CaptureBuffer.cpp
     src/dsp/SpectralMaskProcessor.cpp
     src/model/MaskGrid.cpp)
 
 target_sources(SpectrogramDrawFilter PRIVATE
     ${SDF_CORE_SOURCES}
+    src/session/Session.cpp
+    src/ui/OverviewView.cpp
+    src/ui/SpectrogramView.cpp
     src/PluginProcessor.cpp
     src/PluginEditor.cpp)
 
@@ -58,15 +63,28 @@ target_link_libraries(SpectrogramDrawFilter
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
 
+# ---- Editor snapshot tool (renders the UI to a PNG without a host) -------------
+juce_add_console_app(SdfSnapshot PRODUCT_NAME "SdfSnapshot")
+target_sources(SdfSnapshot PRIVATE tools/Snapshot.cpp)
+get_target_property(SDF_PLUGIN_SOURCES SpectrogramDrawFilter SOURCES)
+target_sources(SdfSnapshot PRIVATE ${SDF_PLUGIN_SOURCES})
+target_include_directories(SdfSnapshot PRIVATE src)
+target_compile_definitions(SdfSnapshot PRIVATE
+    JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_MODAL_LOOPS_PERMITTED=1
+    JucePlugin_Name="Spectrogram Draw Filter")
+target_link_libraries(SdfSnapshot
+    PRIVATE juce::juce_audio_utils juce::juce_dsp
+    PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+
 # ---- Unit tests ---------------------------------------------------------------
 include(CTest)
 if(BUILD_TESTING)
     juce_add_console_app(SdfTests PRODUCT_NAME "SdfTests")
-    target_sources(SdfTests PRIVATE ${SDF_CORE_SOURCES} tests/TestMain.cpp tests/DspTests.cpp tests/MaskGridTests.cpp)
+    target_sources(SdfTests PRIVATE ${SDF_CORE_SOURCES} tests/TestMain.cpp tests/DspTests.cpp tests/MaskGridTests.cpp tests/CaptureTests.cpp)
     target_include_directories(SdfTests PRIVATE src)
     target_compile_definitions(SdfTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
     target_link_libraries(SdfTests
-        PRIVATE juce::juce_audio_basics juce::juce_dsp juce::juce_events
+        PRIVATE juce::juce_audio_basics juce::juce_audio_formats juce::juce_dsp juce::juce_events juce::juce_graphics
         PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
     add_test(NAME SdfTests COMMAND SdfTests)
 endif()

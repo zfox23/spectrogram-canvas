@@ -38,7 +38,7 @@ void SpectralMaskProcessor::Engine::clear()
 }
 
 //==============================================================================
-SpectralMaskProcessor::SpectralMaskProcessor (const MaskGrid& m) : mask (m) {}
+SpectralMaskProcessor::SpectralMaskProcessor (const MaskGrid* m) : mask (m) {}
 
 void SpectralMaskProcessor::prepare (double sr, int channels)
 {
@@ -68,7 +68,17 @@ void SpectralMaskProcessor::setFftOrder (int order)
 void SpectralMaskProcessor::computeGains (Engine& e, juce::int64 frameCentreTimeline, const Settings& s)
 {
     const int numBins = e.size / 2 + 1;
-    mask.sampleColumn ((double) frameCentreTimeline / sampleRate, e.binRows.data(), e.gains.data(), numBins);
+
+    if (s.bypassMask)
+    {
+        std::fill (e.gains.begin(), e.gains.end(), 1.0f);
+        return;
+    }
+
+    if (mask != nullptr)
+        mask->sampleColumn ((double) frameCentreTimeline / sampleRate, e.binRows.data(), e.gains.data(), numBins);
+    else
+        std::fill (e.gains.begin(), e.gains.end(), 0.0f);
 
     const float bg = s.backgroundGain;
     for (int k = 0; k < numBins; ++k)

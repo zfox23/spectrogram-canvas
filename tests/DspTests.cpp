@@ -12,7 +12,7 @@ constexpr double kSampleRate = 44100.0;
 std::vector<float> runProcessor (const MaskGrid& mask, const std::vector<float>& input, int order,
                                  SpectralMaskProcessor::Settings settings, int numChannels = 1)
 {
-    SpectralMaskProcessor proc (mask);
+    SpectralMaskProcessor proc (&mask);
     proc.prepare (kSampleRate, numChannels);
     proc.setFftOrder (order);
 

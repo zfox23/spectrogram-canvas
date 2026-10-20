@@ -1,0 +1,117 @@
+// Renders the plugin editor to a PNG after feeding it synthetic audio, so the UI can be
+// checked without a host.  Usage: SdfSnapshot <output.png> [width height]
+
+#include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_gui_basics/juce_gui_basics.h>
+
+#include "PluginEditor.h"
+#include "PluginProcessor.h"
+
+using namespace sdf;
+
+namespace
+{
+/** A few seconds of test material: a rising chirp, a harmonic tone and noise bursts. */
+float testSignal (juce::int64 i, double sr, juce::Random& rng)
+{
+    const double t = (double) i / sr;
+    const double twoPi = juce::MathConstants<double>::twoPi;
+
+    const double f0 = 100.0, f1 = 8000.0, dur = 8.0;
+    const double k = std::log (f1 / f0) / dur;
+    double x = 0.25 * std::sin (twoPi * f0 * (std::exp (k * t) - 1.0) / k);
+
+    for (int h = 1; h <= 6; ++h)
+        x += 0.12 / h * std::sin (twoPi * 220.0 * h * t);
+
+    if (std::fmod (t, 2.0) < 0.15)
+        x += 0.2 * (rng.nextDouble() * 2.0 - 1.0);
+
+    return (float) x;
+}
+} // namespace
+
+int main (int argc, char** argv)
+{
+    const juce::ScopedJuceInitialiser_GUI gui;
+
+    const juce::File out = juce::File::getCurrentWorkingDirectory().getChildFile (argc > 1 ? argv[1] : "snapshot.png");
+    const int width = argc > 3 ? juce::String (argv[2]).getIntValue() : 1100;
+    const int height = argc > 3 ? juce::String (argv[3]).getIntValue() : 700;
+
+    SpectrogramDrawFilterProcessor proc;
+    const double sr = 44100.0;
+    const int block = 512;
+    proc.setPlayConfigDetails (2, 2, sr, block);
+    proc.prepareToPlay (sr, block);
+
+    auto session = proc.getSession();
+    session->setArmed (true);
+
+    juce::AudioBuffer<float> buffer (2, block);
+    juce::MidiBuffer midi;
+    juce::Random rng (42);
+    const juce::int64 total = (juce::int64) (sr * 8.0);
+    for (juce::int64 pos = 0; pos < total; pos += block)
+    {
+        for (int i = 0; i < block; ++i)
+        {
+            const float v = testSignal (pos + i, sr, rng);
+            buffer.setSample (0, i, v);
+            buffer.setSample (1, i, v);
+        }
+        proc.processBlock (buffer, midi);
+    }
+    session->setArmed (false);
+
+    // Paint a stroke along the 3rd harmonic (660 Hz) from 1 s to 6 s.
+    MaskGrid::ScreenMapping m;
+    m.secondsToX = [] (double s) { return s * 100.0; };
+    m.xToSeconds = [] (double x) { return x / 100.0; };
+    m.hzToY = [] (double hz) { return -MaskGrid::hzToRow (hz); };
+    m.yToHz = [] (double y) { return MaskGrid::rowToHz (-y); };
+    session->mask.beginStroke();
+    for (float x = 100.0f; x <= 600.0f; x += 2.0f)
+        session->mask.stamp (m, x, (float) -MaskGrid::hzToRow (660.0), 12.0f, 0.4f, false);
+    session->mask.endStroke();
+
+    // Let the analysis thread finish.
+    uint32_t lastVersion = 0;
+    int stableFor = 0;
+    for (int i = 0; i < 500 && stableFor < 10; ++i)
+    {
+        juce::Thread::sleep (20);
+        const auto spec = session->getSpectrogram();
+        const auto v = spec != nullptr ? spec->getVersion() : 0;
+        stableFor = (spec != nullptr && v == lastVersion) ? stableFor + 1 : 0;
+        lastVersion = v;
+    }
+
+    // Optional 4th argument: comma-separated options, e.g. "invert,linear".
+    const auto options = juce::StringArray::fromTokens (argc > 4 ? argv[4] : "", ",", "");
+    auto& params = proc.getParameters();
+    if (options.contains ("invert"))
+        params.getParameter (ParamIDs::invert)->setValueNotifyingHost (1.0f);
+    if (options.contains ("linear"))
+        params.getParameter (ParamIDs::freqScale)->setValueNotifyingHost (params.getParameter (ParamIDs::freqScale)->convertTo0to1 (1.0f));
+    if (options.contains ("mel"))
+        params.getParameter (ParamIDs::freqScale)->setValueNotifyingHost (1.0f);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor (proc.createEditor());
+    editor->setSize (width, height);
+    editor->setVisible (true);
+
+    // Pump the message loop so the editor's timer runs and the views render.
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (800);
+
+    const auto image = editor->createComponentSnapshot (editor->getLocalBounds(), true, 1.0f);
+    out.deleteFile();
+    juce::FileOutputStream stream (out);
+    juce::PNGImageFormat png;
+    const bool ok = stream.openedOk() && png.writeImageToStream (image, stream);
+    std::cout << (ok ? "Wrote " : "Failed to write ") << out.getFullPathName() << std::endl;
+
+    editor.reset();
+    proc.releaseResources();
+    return ok ? 0 : 1;
+}

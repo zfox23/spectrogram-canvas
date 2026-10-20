@@ -3,9 +3,10 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <atomic>
+#include <memory>
 
 #include "dsp/SpectralMaskProcessor.h"
-#include "model/MaskGrid.h"
+#include "session/Session.h"
 
 namespace sdf
 {
@@ -34,6 +35,7 @@ struct HostDiagnostics
     std::atomic<int> resetCount { 0 };
     std::atomic<int> timelineJumps { 0 };
     std::atomic<double> sampleRate { 0.0 };
+    std::atomic<juce::uint32> lastProcessMs { 0 };
 };
 
 class SpectrogramDrawFilterProcessor : public juce::AudioProcessor,
@@ -44,7 +46,7 @@ public:
     ~SpectrogramDrawFilterProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override {}
+    void releaseResources() override;
     void reset() override;
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
@@ -70,20 +72,24 @@ public:
 
     //==============================================================================
     juce::AudioProcessorValueTreeState& getParameters() { return parameters; }
-    MaskGrid& getMask() { return mask; }
     const HostDiagnostics& getDiagnostics() const { return diagnostics; }
 
-    /** Host-timeline position (in samples) of the audio currently being processed. */
-    juce::int64 getTimelinePosition() const { return diagnostics.timelinePosition.load(); }
+    /** Message thread: the session currently in use (it can change when state is restored). */
+    std::shared_ptr<Session> getSession() const;
 
-    /** UI-only state that is saved with the plugin. */
+    /** Host-timeline position (in samples) of the audio most recently processed. */
+    juce::int64 getTimelinePosition() const { return diagnostics.timelinePosition.load(); }
+    double getCurrentSampleRate() const { return diagnostics.sampleRate.load(); }
+
+    /** UI-only state that is saved with the plugin (brush size, view, ...). */
     juce::ValueTree& getUiState() { return uiState; }
 
     static int fftOrderForChoice (int choiceIndex) { return SpectralMaskProcessor::kMinOrder + choiceIndex; }
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-    juce::int64 resolveTimeline (int numSamples);
+    juce::int64 resolveTimeline (int numSamples, bool& isPlaying, bool& hasTransport);
+    void setSession (std::shared_ptr<Session> newSession);
     void handleAsyncUpdate() override;
 
     juce::AudioProcessorValueTreeState parameters;
@@ -91,13 +97,17 @@ private:
     std::atomic<float>* fftSizeParam = nullptr;
     std::atomic<float>* invertParam = nullptr;
 
-    MaskGrid mask;
-    SpectralMaskProcessor spectral { mask };
+    mutable juce::SpinLock sessionLock; // guards 'session' against swaps during processBlock
+    std::shared_ptr<Session> session;
+
+    SpectralMaskProcessor spectral;
     HostDiagnostics diagnostics;
     juce::ValueTree uiState { "UI" };
 
+    juce::AudioBuffer<float> monoScratch;
     juce::int64 sampleCounter = 0;
     juce::int64 expectedNextTimeline = -1;
+    bool wasPlaying = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SpectrogramDrawFilterProcessor)
 };

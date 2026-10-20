@@ -33,9 +33,13 @@ public:
     {
         float backgroundGain = 0.0f; // linear
         bool invert = false;
+        bool bypassMask = false; // pass everything (still delayed by the latency)
     };
 
-    explicit SpectralMaskProcessor (const MaskGrid& mask);
+    explicit SpectralMaskProcessor (const MaskGrid* mask = nullptr);
+
+    /** The mask to read from; may be swapped between process() calls. nullptr = unpainted. */
+    void setMask (const MaskGrid* newMask) noexcept { mask = newMask; }
 
     void prepare (double sampleRate, int numChannels);
     void reset();
@@ -71,7 +75,7 @@ private:
     void processFrame (Engine& e, int channel);
     void computeGains (Engine& e, juce::int64 frameCentreTimeline, const Settings& settings);
 
-    const MaskGrid& mask;
+    const MaskGrid* mask = nullptr;
     double sampleRate = 44100.0;
     int numChannels = 0;
     int currentOrder = kDefaultOrder;
