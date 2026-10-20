@@ -6,7 +6,8 @@
     Debug or Release (default Release).
 
 .PARAMETER Install
-    Copy the built VST3 into C:\Program Files\Common Files\VST3 (needs an elevated prompt).
+    Copy the built VST3 into the per-user VST3 folder (%LOCALAPPDATA%\Programs\Common\VST3),
+    which Reaper and other VST3 hosts scan. No administrator rights needed.
 #>
 param(
     [ValidateSet("Debug", "Release")] [string] $Config = "Release",
@@ -30,7 +31,8 @@ $vst3 = Join-Path $root "build\SpectrogramDrawFilter_artefacts\$Config\VST3\Spec
 Write-Host "Built: $vst3"
 
 if ($Install) {
-    $dest = "$env:CommonProgramFiles\VST3"
+    $dest = "$env:LOCALAPPDATA\Programs\Common\VST3"
+    New-Item -ItemType Directory -Force $dest | Out-Null
     Copy-Item -Recurse -Force $vst3 $dest
     Write-Host "Installed to $dest"
 }

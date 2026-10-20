@@ -1,5 +1,7 @@
 #include "session/Session.h"
 
+#include <juce_audio_processors/juce_audio_processors.h>
+
 #include <map>
 
 namespace sdf
@@ -72,6 +74,49 @@ std::shared_ptr<Session> Session::getOrCreate (const juce::String& id, bool& cre
 juce::String Session::createId()
 {
     return juce::Uuid().toDashedString();
+}
+
+bool Session::hostSharesSessions()
+{
+    static const bool shares = juce::File (juce::PluginHostType::getHostPath()).getFileName().containsIgnoreCase ("audacity");
+    return shares;
+}
+
+std::shared_ptr<Session> Session::forkFrom (Session& source)
+{
+    bool created = false;
+    auto copy = getOrCreate (createId(), created);
+
+    juce::MemoryOutputStream maskData;
+    source.mask.writeTo (maskData);
+    juce::MemoryInputStream in (maskData.getData(), maskData.getDataSize(), false);
+    copy->mask.readFrom (in);
+
+    // If the source is still loading its cached audio (e.g. a project just opened), the copy
+    // loads its own copy of the cache file instead.
+    if (source.loadPending.load())
+    {
+        if (source.getCacheFile().copyFileTo (copy->getCacheFile()) && source.getCacheInfoFile().copyFileTo (copy->getCacheInfoFile()))
+            copy->loadCachedCaptureAsync();
+        return copy;
+    }
+
+    const juce::ScopedLock cl (source.captureLock);
+    const auto& src = source.capture;
+    if (src.hasData())
+    {
+        copy->capture.setSampleRate (src.getSampleRate());
+        std::vector<float> block (CaptureBuffer::kChunkSize);
+        for (juce::int64 pos = src.getStartSample(); pos < src.getEndSample(); pos += (juce::int64) block.size())
+        {
+            const int n = (int) juce::jmin ((juce::int64) block.size(), src.getEndSample() - pos);
+            src.read (pos, block.data(), n);
+            copy->capture.write (pos, block.data(), n, true);
+        }
+        copy->savePending = true;
+    }
+
+    return copy;
 }
 
 juce::File Session::getCacheDirectory()

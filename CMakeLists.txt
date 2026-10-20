@@ -80,11 +80,11 @@ target_link_libraries(SdfSnapshot
 include(CTest)
 if(BUILD_TESTING)
     juce_add_console_app(SdfTests PRODUCT_NAME "SdfTests")
-    target_sources(SdfTests PRIVATE ${SDF_CORE_SOURCES} tests/TestMain.cpp tests/DspTests.cpp tests/MaskGridTests.cpp tests/CaptureTests.cpp)
+    target_sources(SdfTests PRIVATE ${SDF_CORE_SOURCES} tests/TestMain.cpp tests/DspTests.cpp tests/MaskGridTests.cpp tests/CaptureTests.cpp tests/SessionTests.cpp src/session/Session.cpp)
     target_include_directories(SdfTests PRIVATE src)
     target_compile_definitions(SdfTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
     target_link_libraries(SdfTests
-        PRIVATE juce::juce_audio_basics juce::juce_audio_formats juce::juce_dsp juce::juce_events juce::juce_graphics
+        PRIVATE juce::juce_audio_processors juce::juce_audio_formats juce::juce_dsp juce::juce_graphics
         PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
     add_test(NAME SdfTests COMMAND SdfTests)
 endif()

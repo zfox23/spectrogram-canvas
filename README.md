@@ -7,7 +7,7 @@ attenuated to the **Background Gain** level.
 Use it to pull a single instrument, voice or tone out of a recording, or (with **Invert**)
 to remove one.
 
-> Status: early development. Tested on Windows with Audacity 3.5.
+> Status: early development. Windows; intended for Reaper and Audacity.
 
 ## How it works
 
@@ -45,6 +45,25 @@ was captured from.
 | **Freq Scale** | Log (default), Linear or Mel display. Your painting is kept when you switch. |
 | **i** | Host diagnostics (timeline position, sample rate, latency, capture range) |
 
+## Using it in Reaper
+
+1. Put *Spectrogram Draw Filter* on the track (or as take FX on the item).
+2. Open its window, press **Capture**, and play the section you want to work on. Capture stops
+   when you stop playback.
+3. Paint and play again, or loop the section and paint while it plays. Changes are heard immediately.
+4. To make it permanent, use *Apply track/take FX to items*, or render.
+
+Notes:
+
+- Painting is tied to the project timeline. If you move the item after capturing, re-capture.
+- Reaper keeps Ctrl+Z for its own undo unless the plugin window has keyboard focus. Click in the
+  plugin window first, or use the **Undo/Redo** buttons. To give the plugin all key presses, enable
+  *Send all keyboard input to plug-in* in the FX window's menu.
+- Duplicating the track or copying the FX gives the copy its own independent painting and capture.
+- With *anticipative FX processing* on, the playhead line in the plugin may run slightly ahead of Reaper's.
+  This doesn't affect what you hear.
+- The plugin adds latency equal to the FFT size, and Reaper compensates for it automatically.
+
 ## Using it in Audacity
 
 **As a realtime effect** (recommended — you hear changes live):
@@ -72,7 +91,7 @@ workload (includes CMake). JUCE 8 is downloaded automatically.
 
 ```powershell
 .\scripts\build.ps1            # configure, build Release, run tests
-.\scripts\build.ps1 -Install   # ...and copy into C:\Program Files\Common Files\VST3 (run as administrator)
+.\scripts\build.ps1 -Install   # ...and copy into %LOCALAPPDATA%\Programs\Common\VST3 (no admin needed)
 ```
 
 Or manually, from a developer prompt:
@@ -84,7 +103,8 @@ ctest --preset release
 ```
 
 The plugin ends up in `build/SpectrogramDrawFilter_artefacts/Release/VST3/`. After installing,
-rescan in your host (Audacity: *Effect → Plugin Manager → Rescan*).
+rescan in your host (Reaper: *Options → Preferences → Plug-ins → VST → Re-scan*;
+Audacity: *Effect → Plugin Manager → Rescan*).
 
 `build/SdfSnapshot_artefacts/Release/SdfSnapshot.exe out.png [width height] [invert,linear]`
 renders the editor with synthetic audio to a PNG, which is handy for checking UI changes.

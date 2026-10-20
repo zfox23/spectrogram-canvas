@@ -20,6 +20,8 @@ SpectrogramDrawFilterProcessor::SpectrogramDrawFilterProcessor()
 SpectrogramDrawFilterProcessor::~SpectrogramDrawFilterProcessor()
 {
     cancelPendingUpdate();
+    if (session != nullptr)
+        session->removeUser();
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout SpectrogramDrawFilterProcessor::createParameterLayout()
@@ -69,6 +71,9 @@ std::shared_ptr<Session> SpectrogramDrawFilterProcessor::getSession() const
 void SpectrogramDrawFilterProcessor::setSession (std::shared_ptr<Session> newSession)
 {
     newSession->requestFftOrder (fftOrderForChoice ((int) fftSizeParam->load()));
+    newSession->addUser();
+    if (session != nullptr)
+        session->removeUser();
     {
         const juce::SpinLock::ScopedLockType sl (sessionLock);
         std::swap (session, newSession);
@@ -253,6 +258,14 @@ void SpectrogramDrawFilterProcessor::setStateInformation (const void* data, int 
 
     bool created = false;
     auto newSession = Session::getOrCreate (id, created);
+
+    // In most hosts a live session already used by another instance means this instance is a
+    // copy (duplicated track / FX), so it gets its own independent copy of the session.
+    if (! created && newSession->getNumUsers() > 0 && ! Session::hostSharesSessions())
+    {
+        setSession (Session::forkFrom (*newSession));
+        return;
+    }
 
     // A session that is already live in this process is authoritative; only a newly
     // re-created one takes its mask from the saved state and its audio from the cache.

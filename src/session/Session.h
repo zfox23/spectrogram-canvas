@@ -33,6 +33,21 @@ public:
     static std::shared_ptr<Session> getOrCreate (const juce::String& id, bool& created);
     static juce::String createId();
 
+    /** Creates a new, independent session holding a copy of another's mask and captured audio. */
+    static std::shared_ptr<Session> forkFrom (Session& source);
+
+    /**
+        True when the host splits one effect across several plugin instances that must share a
+        session (Audacity). Elsewhere, an instance whose state names a session that is already
+        in use (e.g. a duplicated track in Reaper) forks its own copy instead.
+    */
+    static bool hostSharesSessions();
+
+    /** Number of plugin instances currently attached (message thread). */
+    int getNumUsers() const noexcept { return users.load(); }
+    void addUser() noexcept { ++users; }
+    void removeUser() noexcept { --users; }
+
     const juce::String id;
     MaskGrid mask;
     CaptureBuffer capture;
@@ -82,6 +97,7 @@ private:
     std::atomic<std::shared_ptr<SpectrogramStore>> spectrogram;
     std::atomic<int> requestedOrder { 12 };
     std::atomic<bool> armed { false };
+    std::atomic<int> users { 0 };
     std::atomic<bool> savePending { false };
     std::atomic<bool> loadPending { false };
     std::atomic<juce::uint32> lastCaptureMs { 0 };
