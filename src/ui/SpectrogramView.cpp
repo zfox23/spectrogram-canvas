@@ -180,6 +180,8 @@ void SpectrogramView::refresh (std::optional<double> playheadSeconds)
     if (! sameWindow (currentWindow(), renderedView))
         repaint();
 
+    requestDetailIfNeeded();
+
     if (specDirty || overlayDirty || overlayDirtyX1 >= overlayDirtyX0)
         repaint();
 }
@@ -198,6 +200,76 @@ bool SpectrogramView::sameWindow (const SpectrogramStore::View& a, const Spectro
 {
     return a.startSeconds == b.startSeconds && a.endSeconds == b.endSeconds && a.normLow == b.normLow
            && a.normHigh == b.normHigh && sameScale (a, b);
+}
+
+bool SpectrogramView::wantsDetail (const SpectrogramStore::View& w, const SpectrogramStore& spec, int plotWidth) const
+{
+    // Worth it once each pixel column covers less audio than one precomputed frame step.
+    const double samplesPerPixel = (w.endSeconds - w.startSeconds) * spec.getSampleRate() / juce::jmax (1, plotWidth);
+    return samplesPerPixel <= spec.getHop();
+}
+
+static bool sameRequest (const DetailRenderer::Request& a, const DetailRenderer::Request& b)
+{
+    return a.width == b.width && a.height == b.height && a.fftOrder == b.fftOrder && a.dataVersion == b.dataVersion
+           && a.sampleRate == b.sampleRate && a.view.startSeconds == b.view.startSeconds && a.view.endSeconds == b.view.endSeconds
+           && a.view.normLow == b.view.normLow && a.view.normHigh == b.view.normHigh && a.view.scale.type == b.view.scale.type
+           && a.view.scale.minHz == b.view.scale.minHz && a.view.scale.maxHz == b.view.scale.maxHz;
+}
+
+bool SpectrogramView::detailMatches (const SpectrogramStore::View& w, const SpectrogramStore* spec, juce::Rectangle<int> plot) const
+{
+    return detailImage.isValid() && spec != nullptr && sameWindow (detailFor.view, w) && detailFor.width == plot.getWidth()
+           && detailFor.height == plot.getHeight() && detailFor.fftOrder == spec->getFftOrder()
+           && detailFor.dataVersion == spec->getVersion();
+}
+
+void SpectrogramView::requestDetailIfNeeded()
+{
+    const auto spec = session != nullptr ? session->getSpectrogram() : nullptr;
+    if (spec == nullptr)
+        return;
+
+    const auto now = juce::Time::getMillisecondCounter();
+    if (spec->getVersion() != seenSpecVersion)
+    {
+        seenSpecVersion = spec->getVersion();
+        lastSpecChangeMs = now;
+    }
+
+    const auto plot = getPlotArea();
+    const auto w = currentWindow();
+
+    // Wait until the view and the audio have settled (e.g. not mid-zoom or mid-capture).
+    if (plot.isEmpty() || drag != Drag::none || now - lastViewChangeMs < kSettleMs || now - lastSpecChangeMs < 300
+        || ! wantsDetail (w, *spec, plot.getWidth()) || detailMatches (w, spec.get(), plot))
+        return;
+
+    DetailRenderer::Request r;
+    auto s = session;
+    r.readAudio = [s] (juce::int64 start, float* dest, int n) { s->readCapture (start, dest, n); };
+    r.view = w;
+    r.width = plot.getWidth();
+    r.height = plot.getHeight();
+    r.fftOrder = spec->getFftOrder();
+    r.sampleRate = spec->getSampleRate();
+    r.dataVersion = spec->getVersion();
+
+    if (detailPending && sameRequest (r, detailPendingFor))
+        return;
+
+    detailPending = true;
+    detailPendingFor = r;
+    detailRenderer.request (r, [safe = juce::Component::SafePointer<SpectrogramView> (this)] (juce::Image image, const DetailRenderer::Request& done) {
+        if (auto* self = safe.getComponent())
+        {
+            if (sameRequest (done, self->detailPendingFor))
+                self->detailPending = false;
+            self->detailImage = image;
+            self->detailFor = done;
+            self->repaint();
+        }
+    });
 }
 
 void SpectrogramView::updateCursor()
@@ -252,7 +324,7 @@ void SpectrogramView::paint (juce::Graphics& g)
             renderedView = sv;
         }
         renderImages (spec, plot);
-        g.drawImageAt (specImage, plot.getX(), plot.getY());
+        g.drawImageAt (detailMatches (sv, spec.get(), plot) ? detailImage : specImage, plot.getX(), plot.getY());
         g.drawImageAt (overlayImage, plot.getX(), plot.getY());
     }
 
@@ -275,7 +347,8 @@ void SpectrogramView::drawStretchedPreview (juce::Graphics& g, juce::Rectangle<i
     g.setColour (SpectrogramStore::colourFor (0));
     g.fillRect (plot);
     g.setImageResamplingQuality (juce::Graphics::lowResamplingQuality);
-    g.drawImageTransformed (specImage, transform);
+    const auto spec = session != nullptr ? session->getSpectrogram() : nullptr;
+    g.drawImageTransformed (detailMatches (r, spec.get(), plot) ? detailImage : specImage, transform);
     g.drawImageTransformed (overlayImage, transform);
 }
 

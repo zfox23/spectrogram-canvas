@@ -122,18 +122,20 @@ void SpectrogramStore::render (juce::Image& image, const View& view) const
         return;
 
     // Bin range covered by each pixel row (top row = highest frequency).
+    // Rows that span several bins take the loudest; rows narrower than a bin interpolate
+    // between the two nearest bins, so low frequencies don't look like stair steps.
     std::vector<int> binLo ((size_t) h), binHi ((size_t) h), binStep ((size_t) h);
+    std::vector<float> binCentre ((size_t) h);
     const double binPerHz = size / sampleRate;
     for (int y = 0; y < h; ++y)
     {
         auto normAt = [&] (double py) { return view.normHigh - py / h * (view.normHigh - view.normLow); };
         const double hzTop = view.scale.normToHz (normAt (y));
         const double hzBottom = view.scale.normToHz (normAt (y + 1));
-        const int lo = juce::jlimit (0, numBins - 1, (int) std::floor (hzBottom * binPerHz + 0.5));
-        const int hi = juce::jlimit (0, numBins - 1, (int) std::floor (hzTop * binPerHz + 0.5));
-        binLo[(size_t) y] = juce::jmin (lo, hi);
-        binHi[(size_t) y] = juce::jmax (lo, hi);
+        binLo[(size_t) y] = juce::jlimit (0, numBins - 1, (int) std::ceil (hzBottom * binPerHz));
+        binHi[(size_t) y] = juce::jlimit (0, numBins - 1, (int) std::floor (hzTop * binPerHz));
         binStep[(size_t) y] = juce::jmax (1, (binHi[(size_t) y] - binLo[(size_t) y] + 1) / kMaxBinsPerPixel);
+        binCentre[(size_t) y] = (float) juce::jlimit (0.0, (double) (numBins - 1), view.scale.normToHz (normAt (y + 0.5)) * binPerHz);
     }
 
     const double framesPerSecond = sampleRate / hop;
@@ -162,9 +164,24 @@ void SpectrogramStore::render (juce::Image& image, const View& view) const
         {
             uint8_t v = 0;
             const int b0 = binLo[(size_t) y], b1 = binHi[(size_t) y], step = binStep[(size_t) y];
-            for (int r = 0; r < numRows; ++r)
-                for (int b = b0; b <= b1; b += step)
-                    v = juce::jmax (v, rows[(size_t) r][b].load (std::memory_order_relaxed));
+            if (b1 > b0)
+            {
+                for (int r = 0; r < numRows; ++r)
+                    for (int b = b0; b <= b1; b += step)
+                        v = juce::jmax (v, rows[(size_t) r][b].load (std::memory_order_relaxed));
+            }
+            else
+            {
+                const float c = binCentre[(size_t) y];
+                const int k0 = juce::jmin ((int) c, numBins - 2);
+                uint8_t a = 0, b = 0;
+                for (int r = 0; r < numRows; ++r)
+                {
+                    a = juce::jmax (a, rows[(size_t) r][k0].load (std::memory_order_relaxed));
+                    b = juce::jmax (b, rows[(size_t) r][k0 + 1].load (std::memory_order_relaxed));
+                }
+                v = (uint8_t) juce::jlimit (0, 255, (int) ((float) a + (c - (float) k0) * (float) (b - a) + 0.5f));
+            }
 
             auto* pixel = bitmap.getPixelPointer (x, y);
             const auto& c = lut[v];

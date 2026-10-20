@@ -4,6 +4,7 @@
 
 #include <memory>
 
+#include "analysis/DetailRenderer.h"
 #include "host/HostTransport.h"
 #include "session/Session.h"
 #include "ui/ViewState.h"
@@ -59,6 +60,9 @@ private:
     void drawStretchedPreview (juce::Graphics&, juce::Rectangle<int> plot, const SpectrogramStore::View& window);
     void paintDecorations (juce::Graphics&, juce::Rectangle<int> plot);
     void updateCursor();
+    bool wantsDetail (const SpectrogramStore::View& window, const SpectrogramStore& spec, int plotWidth) const;
+    bool detailMatches (const SpectrogramStore::View& window, const SpectrogramStore* spec, juce::Rectangle<int> plot) const;
+    void requestDetailIfNeeded();
 
     void stampAt (juce::Point<float> p);
     void markOverlayDirty (float x0, float x1);
@@ -78,6 +82,14 @@ private:
     juce::uint32 lastViewChangeMs = 0, lastFullRenderMs = 0;
     bool hasRendered = false;
     static constexpr juce::uint32 kSettleMs = 60, kRenderIntervalMs = 100;
+
+    // Full-detail render of the current window, computed from the audio in the background.
+    DetailRenderer detailRenderer;
+    juce::Image detailImage;
+    DetailRenderer::Request detailFor, detailPendingFor;
+    bool detailPending = false;
+    uint32_t seenSpecVersion = 0;
+    juce::uint32 lastSpecChangeMs = 0;
     int overlayDirtyX0 = 0, overlayDirtyX1 = -1;
 
     float brushRadius = 20.0f, hardness = 0.5f;

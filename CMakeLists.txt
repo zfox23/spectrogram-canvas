@@ -33,6 +33,7 @@ juce_add_plugin(SpectrogramDrawFilter
 
 # Core sources shared by the plugin and the unit tests.
 set(SDF_CORE_SOURCES
+    src/analysis/DetailRenderer.cpp
     src/analysis/SpectrogramStore.cpp
     src/capture/CaptureBuffer.cpp
     src/dsp/SpectralMaskProcessor.cpp
@@ -81,7 +82,7 @@ target_link_libraries(SdfSnapshot
 include(CTest)
 if(BUILD_TESTING)
     juce_add_console_app(SdfTests PRODUCT_NAME "SdfTests")
-    target_sources(SdfTests PRIVATE ${SDF_CORE_SOURCES} tests/TestMain.cpp tests/DspTests.cpp tests/MaskGridTests.cpp tests/CaptureTests.cpp tests/SessionTests.cpp src/session/Session.cpp)
+    target_sources(SdfTests PRIVATE ${SDF_CORE_SOURCES} tests/TestMain.cpp tests/DspTests.cpp tests/MaskGridTests.cpp tests/CaptureTests.cpp tests/SessionTests.cpp tests/DetailRendererTests.cpp src/session/Session.cpp)
     target_include_directories(SdfTests PRIVATE src)
     target_compile_definitions(SdfTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
     target_link_libraries(SdfTests

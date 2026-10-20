@@ -68,6 +68,13 @@ public:
     */
     bool captureBlock (juce::int64 timelineStart, const float* mono, int numSamples, bool offline);
 
+    /** Any thread: reads captured audio, safe against the capture being cleared or reloaded. */
+    void readCapture (juce::int64 start, float* dest, int numSamples) const
+    {
+        const juce::ScopedLock cl (captureLock);
+        capture.read (start, dest, numSamples);
+    }
+
     /** Message thread: discards the captured audio. */
     void clearCapture();
 
@@ -103,7 +110,7 @@ private:
     std::atomic<juce::uint32> lastCaptureMs { 0 };
 
     juce::SpinLock writeLock;          // held by the audio thread while writing capture
-    juce::CriticalSection captureLock; // held while reading capture in bulk, or replacing it
+    mutable juce::CriticalSection captureLock; // held while reading capture in bulk, or replacing it
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Session)
 };
