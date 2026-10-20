@@ -136,7 +136,7 @@ cd web
 npm install
 npm run dev        # local dev server
 npm test           # unit tests (FFT, filter, mask, encoders)
-npm run build      # static site in web/dist - host it anywhere (GitHub Pages, Netlify, S3, ...)
+npm run build      # static site in web/dist - host it anywhere (Netlify, S3, ...); pushes to `main` deploy it to GitHub Pages automatically
 ```
 
 ## Project layout
