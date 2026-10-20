@@ -6,7 +6,7 @@
 #include <memory>
 
 #include "dsp/SpectralMaskProcessor.h"
-#include "host/HostLoop.h"
+#include "host/HostTransport.h"
 #include "session/Session.h"
 
 namespace sdf
@@ -54,7 +54,7 @@ public:
     using AudioProcessor::processBlock;
 
     juce::AudioProcessorEditor* createEditor() override;
-    juce::VST3ClientExtensions* getVST3ClientExtensions() override { return &hostLoop; }
+    juce::VST3ClientExtensions* getVST3ClientExtensions() override { return &hostTransport; }
     bool hasEditor() const override { return true; }
 
     const juce::String getName() const override { return JucePlugin_Name; }
@@ -84,7 +84,14 @@ public:
     double getCurrentSampleRate() const { return diagnostics.sampleRate.load(); }
 
     /** Message thread: the host's loop range (REAPER: exact and live; others: from the play head). */
-    LoopRange getLoopRange() const { return hostLoop.get(); }
+    LoopRange getLoopRange() const { return hostTransport.get(); }
+
+    /**
+        Message thread: where the playhead should be drawn, in timeline seconds, or empty to hide it.
+        In REAPER this is the audible position (REAPER processes FX ahead of playback); elsewhere it
+        is the position of the audio most recently processed.
+    */
+    std::optional<double> getDisplayPlayPosition() const;
 
     /** UI-only state that is saved with the plugin (brush size, view, ...). */
     juce::ValueTree& getUiState() { return uiState; }
@@ -107,7 +114,7 @@ private:
 
     SpectralMaskProcessor spectral;
     HostDiagnostics diagnostics;
-    HostLoop hostLoop;
+    HostTransport hostTransport;
     juce::ValueTree uiState { "UI" };
 
     juce::AudioBuffer<float> monoScratch;

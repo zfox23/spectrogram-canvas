@@ -147,7 +147,7 @@ MaskGrid::ScreenMapping SpectrogramView::makeMapping() const
 }
 
 //==============================================================================
-void SpectrogramView::refresh (juce::int64 playheadSample, double sampleRate, bool showPlayhead)
+void SpectrogramView::refresh (std::optional<double> playheadSeconds)
 {
     if (session == nullptr)
         return;
@@ -167,7 +167,7 @@ void SpectrogramView::refresh (juce::int64 playheadSample, double sampleRate, bo
     if (session->mask.getVersion() != renderedMaskVersion && overlayDirtyX1 < overlayDirtyX0)
         overlayDirty = true; // changed by something other than our own strokes (undo, another instance, ...)
 
-    const float newPlayheadX = showPlayhead && sampleRate > 0 ? secondsToX ((double) playheadSample / sampleRate) : -1.0f;
+    const float newPlayheadX = playheadSeconds ? secondsToX (*playheadSeconds) : -1.0f;
     if (std::abs (newPlayheadX - playheadX) > 0.5f)
     {
         const auto plot = getPlotArea();

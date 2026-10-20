@@ -4,7 +4,7 @@
 
 #include <memory>
 
-#include "host/HostLoop.h"
+#include "host/HostTransport.h"
 #include "session/Session.h"
 #include "ui/ViewState.h"
 
@@ -22,7 +22,7 @@ public:
     void setSession (std::shared_ptr<Session> s);
 
     /** Called ~30 times a second by the editor. */
-    void refresh (juce::int64 playheadSample, double playheadSampleRate, bool showPlayhead);
+    void refresh (std::optional<double> playheadSeconds);
 
     void setBrushRadius (float r);
     float getBrushRadius() const { return brushRadius; }

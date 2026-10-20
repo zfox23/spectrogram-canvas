@@ -40,7 +40,7 @@ set(SDF_CORE_SOURCES
 
 target_sources(SpectrogramDrawFilter PRIVATE
     ${SDF_CORE_SOURCES}
-    src/host/HostLoop.cpp
+    src/host/HostTransport.cpp
     src/session/Session.cpp
     src/ui/OverviewView.cpp
     src/ui/SpectrogramView.cpp

@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <atomic>
+#include <optional>
 
 namespace sdf
 {
@@ -27,7 +28,7 @@ struct LoopRange
     the exact loop range in seconds at any time, even while stopped. In other hosts it uses the
     loop points from the play head, which are in quarter notes and only arrive while processing.
 */
-class HostLoop : public juce::VST3ClientExtensions
+class HostTransport : public juce::VST3ClientExtensions
 {
 public:
     /** VST3 entry point: called by the plugin wrapper with the host's IHostApplication. */
@@ -41,12 +42,23 @@ public:
 
     bool isConnectedToReaper() const noexcept { return getLoopTimeRange != nullptr; }
 
+    /**
+        Message thread: the position the listener is hearing right now, in timeline seconds, if
+        the host can tell us (REAPER). Hosts process audio ahead of playback, so this differs
+        from the position of the audio being processed. Empty when stopped or unknown.
+    */
+    std::optional<double> getAudiblePlayPosition() const;
+
 private:
     using GetSetLoopTimeRange2 = void (*) (void* project, bool isSet, bool isLoop, double* start, double* end, bool allowAutoSeek);
     using GetSetRepeat = int (*) (int value);
+    using GetPlayStateEx = int (*) (void* project);
+    using GetPlayPosition2Ex = double (*) (void* project);
 
     GetSetLoopTimeRange2 getLoopTimeRange = nullptr;
     GetSetRepeat getSetRepeat = nullptr;
+    GetPlayStateEx getPlayState = nullptr;
+    GetPlayPosition2Ex getPlayPosition = nullptr;
     void* reaperProject = nullptr;
 
     std::atomic<bool> playHeadValid { false }, playHeadLooping { false };

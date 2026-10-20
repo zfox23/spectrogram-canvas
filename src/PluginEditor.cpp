@@ -325,11 +325,9 @@ void SpectrogramDrawFilterEditor::timerCallback()
                         : "No audio captured yet.\nPress Capture, then play the audio (or click Apply in Audacity) to see its spectrogram.";
     spectrogramView.setOverlayText (overlay);
 
-    const auto& diag = processor.getDiagnostics();
-    const bool processingNow = now - diag.lastProcessMs.load() < 250;
-    const double sr = diag.sampleRate.load();
-    spectrogramView.refresh (processor.getTimelinePosition(), sr, processingNow);
-    overview.refresh (processor.getTimelinePosition(), sr, processingNow);
+    const auto playhead = processor.getDisplayPlayPosition();
+    spectrogramView.refresh (playhead);
+    overview.refresh (playhead);
 
     if (showDiagnostics)
     {
@@ -361,6 +359,10 @@ juce::String SpectrogramDrawFilterEditor::buildDiagnosticsText() const
       << "prepare: " << d.prepareCount.load() << "   reset: " << d.resetCount.load()
       << "   timeline jumps: " << d.timelineJumps.load() << "\n"
       << "Latency: " << processor.getLatencySamples() << " samples\n";
+
+    const auto shown = processor.getDisplayPlayPosition();
+    t << "Playhead shown at: " << (shown ? juce::String (*shown, 3) + " s" : juce::String ("hidden"))
+      << "   processing at: " << secs (d.timelinePosition.load()) << "\n";
 
     const auto loop = processor.getLoopRange();
     t << "Loop: " << (loop.valid ? juce::String (loop.startSeconds, 3) + " - " + juce::String (loop.endSeconds, 3) + " s"

@@ -122,7 +122,7 @@ juce::int64 SpectrogramDrawFilterProcessor::resolveTimeline (int numSamples, boo
         hasPlayHead = true;
         if (const auto pos = ph->getPosition())
         {
-            hostLoop.updateFromPlayHead (*pos);
+            hostTransport.updateFromPlayHead (*pos);
             playing = pos->getIsPlaying();
             if (const auto t = pos->getTimeInSamples())
             {
@@ -215,6 +215,18 @@ void SpectrogramDrawFilterProcessor::processBlock (juce::AudioBuffer<float>& buf
 
     spectral.setMask (&session->mask);
     spectral.process (buffer, timeline, settings);
+}
+
+std::optional<double> SpectrogramDrawFilterProcessor::getDisplayPlayPosition() const
+{
+    if (hostTransport.isConnectedToReaper())
+        return hostTransport.getAudiblePlayPosition();
+
+    const double sr = diagnostics.sampleRate.load();
+    const bool processingNow = juce::Time::getMillisecondCounter() - diagnostics.lastProcessMs.load() < 250;
+    if (sr <= 0.0 || ! processingNow)
+        return std::nullopt;
+    return (double) diagnostics.timelinePosition.load() / sr;
 }
 
 void SpectrogramDrawFilterProcessor::handleAsyncUpdate()

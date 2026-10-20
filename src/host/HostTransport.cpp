@@ -1,4 +1,4 @@
-#include "host/HostLoop.h"
+#include "host/HostTransport.h"
 
 JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wnon-virtual-dtor", "-Wpragma-pack")
 JUCE_BEGIN_IGNORE_WARNINGS_MSVC (4100)
@@ -29,7 +29,7 @@ JUCE_END_IGNORE_WARNINGS_GCC_LIKE
 
 namespace sdf
 {
-void HostLoop::setIHostApplication (Steinberg::FUnknown* host)
+void HostTransport::setIHostApplication (Steinberg::FUnknown* host)
 {
     if (host == nullptr)
         return;
@@ -41,11 +41,13 @@ void HostLoop::setIHostApplication (Steinberg::FUnknown* host)
     auto* reaperHost = static_cast<reaper::IReaperHostApplication*> (obj);
     getLoopTimeRange = reinterpret_cast<GetSetLoopTimeRange2> (reaperHost->getReaperApi ("GetSet_LoopTimeRange2"));
     getSetRepeat = reinterpret_cast<GetSetRepeat> (reaperHost->getReaperApi ("GetSetRepeat"));
+    getPlayState = reinterpret_cast<GetPlayStateEx> (reaperHost->getReaperApi ("GetPlayStateEx"));
+    getPlayPosition = reinterpret_cast<GetPlayPosition2Ex> (reaperHost->getReaperApi ("GetPlayPosition2Ex"));
     reaperProject = reaperHost->getReaperParent (3);
     reaperHost->release();
 }
 
-void HostLoop::updateFromPlayHead (const juce::AudioPlayHead::PositionInfo& pos)
+void HostTransport::updateFromPlayHead (const juce::AudioPlayHead::PositionInfo& pos)
 {
     const auto loop = pos.getLoopPoints();
     const auto bpm = pos.getBpm();
@@ -66,7 +68,22 @@ void HostLoop::updateFromPlayHead (const juce::AudioPlayHead::PositionInfo& pos)
     playHeadValid = true;
 }
 
-LoopRange HostLoop::get() const
+std::optional<double> HostTransport::getAudiblePlayPosition() const
+{
+    if (getPlayState == nullptr || getPlayPosition == nullptr)
+        return std::nullopt;
+
+    // Play state bits: 1 = playing, 2 = paused, 4 = recording.
+    const int state = getPlayState (reaperProject);
+    if ((state & 1) == 0 && (state & 4) == 0)
+        return std::nullopt;
+
+    // GetPlayPosition2Ex is the position being heard (latency-compensated), which is what
+    // REAPER's own play cursor shows.
+    return getPlayPosition (reaperProject);
+}
+
+LoopRange HostTransport::get() const
 {
     LoopRange r;
 

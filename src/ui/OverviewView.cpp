@@ -50,7 +50,7 @@ juce::Rectangle<float> OverviewView::getWindowRect() const
     return { x0, plot.getY(), juce::jmax (2.0f, x1 - x0), plot.getHeight() };
 }
 
-void OverviewView::refresh (juce::int64 playheadSample, double sampleRate, bool showPlayhead)
+void OverviewView::refresh (std::optional<double> playheadSeconds)
 {
     if (session == nullptr)
         return;
@@ -68,7 +68,7 @@ void OverviewView::refresh (juce::int64 playheadSample, double sampleRate, bool 
         repaint();
     }
 
-    const float newX = showPlayhead && sampleRate > 0 ? secondsToX ((double) playheadSample / sampleRate) : -1.0f;
+    const float newX = playheadSeconds ? secondsToX (*playheadSeconds) : -1.0f;
     if (std::abs (newX - playheadX) > 0.5f)
     {
         playheadX = newX;

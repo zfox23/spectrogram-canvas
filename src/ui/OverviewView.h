@@ -4,7 +4,7 @@
 
 #include <memory>
 
-#include "host/HostLoop.h"
+#include "host/HostTransport.h"
 #include "session/Session.h"
 #include "ui/ViewState.h"
 
@@ -21,7 +21,7 @@ public:
 
     void setSession (std::shared_ptr<Session> s);
     void setInvert (bool shouldInvert);
-    void refresh (juce::int64 playheadSample, double sampleRate, bool showPlayhead);
+    void refresh (std::optional<double> playheadSeconds);
     void viewChanged() { repaint(); }
     void setLoopRange (const LoopRange& range)
     {
