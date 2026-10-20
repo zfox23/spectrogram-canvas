@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spectrogram Draw Filter</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23121419'/%3E%3Cpath d='M2 12l3-6 3 4 3-7 3 9' stroke='%234cc9f0' stroke-width='1.6' fill='none'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Spectrogram Draw Filter</h1>
+      <span class="tagline">Paint the sound you want to keep. Everything runs in your browser; nothing is uploaded.</span>
+      <label class="btn primary" for="file">Open audio…</label>
+      <input id="file" type="file" accept="audio/*,.wav,.mp3,.flac,.ogg,.m4a" hidden />
+    </header>
+
+    <div id="toolbar" class="toolbar" aria-disabled="true">
+      <div class="group">
+        <button id="play" class="btn">▶ Play</button>
+        <button id="stop" class="btn" title="Stop and return to the start marker">⏹ Stop</button>
+        <select id="listen" title="What to listen to">
+          <option value="filtered">Filtered</option>
+          <option value="original">Original</option>
+        </select>
+        <span id="time" class="mono">0:00.0 / 0:00.0</span>
+      </div>
+      <div class="group">
+        <label class="check" title="Repeat between the loop points"><input id="loopOn" type="checkbox" /> Loop</label>
+        <button id="clearLoop" class="btn" title="Remove the loop points" disabled>Clear loop</button>
+      </div>
+      <div class="group">
+        <button id="undo" class="btn">Undo</button>
+        <button id="redo" class="btn">Redo</button>
+        <button id="clear" class="btn">Clear paint</button>
+        <button id="all" class="btn">Paint all</button>
+        <button id="fit" class="btn">Fit view</button>
+      </div>
+      <div class="group">
+        <label class="check"><input id="invert" type="checkbox" /> Invert</label>
+        <label>Background <input id="bg" type="range" min="-144" max="12" step="1" value="-144" /> <output id="bgOut" class="mono">−∞ dB</output></label>
+      </div>
+      <div class="group">
+        <label>Brush <input id="brush" type="range" min="3" max="120" step="1" value="18" /></label>
+        <label>Hardness <input id="hardness" type="range" min="0" max="100" step="1" value="50" /></label>
+      </div>
+      <div class="group">
+        <label>FFT
+          <select id="fft">
+            <option value="9">512</option><option value="10">1024</option><option value="11">2048</option>
+            <option value="12" selected>4096</option><option value="13">8192</option><option value="14">16384</option>
+          </select>
+        </label>
+        <label>Scale
+          <select id="scale"><option value="log">Log</option><option value="linear">Linear</option><option value="mel">Mel</option></select>
+        </label>
+      </div>
+      <div class="group right">
+        <label>Save as
+          <select id="format">
+            <option value="wav16">WAV 16-bit</option>
+            <option value="wav24">WAV 24-bit</option>
+            <option value="wav32">WAV 32-bit float</option>
+            <option value="mp3-320">MP3 320 kbps</option>
+            <option value="mp3-256">MP3 256 kbps</option>
+            <option value="mp3-192">MP3 192 kbps</option>
+            <option value="mp3-128">MP3 128 kbps</option>
+          </select>
+        </label>
+        <button id="save" class="btn primary">Save</button>
+      </div>
+      <div class="group">
+        <button id="exportPng" class="btn" title="Export a PNG of the painted spectrogram with the full app state embedded">Export PNG</button>
+        <label class="btn" for="importPng" title="Restore state from an exported PNG (must match the loaded audio file)">Import PNG…</label>
+        <input id="importPng" type="file" accept="image/png,.png" hidden />
+      </div>
+    </div>
+
+    <main id="stage">
+      <div id="plot"></div>
+      <div id="overview"></div>
+      <div id="empty">
+        <p><strong>Drop an audio file here</strong> or use “Open audio…”.</p>
+        <p class="dim">Drop an exported PNG together with its audio file to restore a session.</p>
+        <p class="dim">WAV, MP3, FLAC, OGG, M4A — whatever your browser can decode.</p>
+      </div>
+      <div id="busy" hidden><div id="busyText"></div><div class="bar"><div id="busyBar"></div></div></div>
+    </main>
+
+    <footer>
+      <span id="status">Open a file to begin.</span>
+      <span class="dim help">Left-drag paint · Right-drag erase · Wheel / pinch zoom time · Ctrl+Shift+wheel zoom frequency · Shift+wheel scroll · Alt+wheel brush size · Middle-drag / Alt+drag pan · Click time ruler to set the start point · Drag time ruler to set loop points · Space play · Ctrl+Z / Ctrl+Y</span>
+    </footer>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -9,6 +9,13 @@ to remove one.
 
 > Status: early development. Windows; intended for Reaper and Audacity.
 
+This repository holds two front-ends for the same idea:
+
+| Folder | What it is |
+|---|---|
+| [`vst/`](vst) | The VST3 plugin (JUCE / C++). Documented below. |
+| [`web/`](web) | A serverless web app: open an audio file, paint, and save the result as WAV or MP3. All processing happens locally in the browser. See [Web app](#web-app). |
+
 ## How it works
 
 A plugin only ever sees audio as the host plays or renders it, so the workflow has two passes:
@@ -88,42 +95,67 @@ Notes:
 Captured audio is cached in `%APPDATA%\SpectrogramDrawFilter\captures` so it survives closing the
 plugin window. Cached files older than 30 days are deleted automatically.
 
-## Building (Windows)
+## Building the plugin (Windows)
 
 Requirements: Visual Studio 2026 or its Build Tools, with the *Desktop development with C++*
 workload (includes CMake). JUCE 8 is downloaded automatically.
 
 ```powershell
-.\scripts\build.ps1            # configure, build Release, run tests
-.\scripts\build.ps1 -Install   # ...and copy into %LOCALAPPDATA%\Programs\Common\VST3 (no admin needed)
+.\vst\scripts\build.ps1       # configure, build Release, run tests
+.\vst\scripts\build.ps1 -Install # ...and copy into %LOCALAPPDATA%\Programs\Common\VST3 (no admin needed)
 ```
 
 Or manually, from a developer prompt:
 
 ```
+cd vst
 cmake --preset vs2026
 cmake --build --preset release
 ctest --preset release
 ```
 
-The plugin ends up in `build/SpectrogramDrawFilter_artefacts/Release/VST3/`. After installing,
+The plugin ends up in `vst/build/SpectrogramDrawFilter_artefacts/Release/VST3/`. After installing,
 rescan in your host (Reaper: *Options → Preferences → Plug-ins → VST → Re-scan*;
 Audacity: *Effect → Plugin Manager → Rescan*).
 
-`build/SdfSnapshot_artefacts/Release/SdfSnapshot.exe out.png [width height] [invert,linear]`
+`vst/build/SdfSnapshot_artefacts/Release/SdfSnapshot.exe out.png [width height] [invert,linear]`
 renders the editor with synthetic audio to a PNG, which is handy for checking UI changes.
+
+## Web app
+
+`web/` is a static site (TypeScript + Vite, no backend). Open an audio file, paint the regions to
+keep, listen to the filtered result, and save it as WAV (16/24-bit or 32-bit float) or MP3.
+The audio never leaves your machine: decoding, the STFT filter and the encoders all run in the
+browser (heavy work happens in a Web Worker).
+
+Differences from the plugin: there is no capture step (the whole file is analysed on load), and the
+filter is applied offline with no latency. The painting model, brush, controls and DSP are the same.
+
+```
+cd web
+npm install
+npm run dev        # local dev server
+npm test           # unit tests (FFT, filter, mask, encoders)
+npm run build      # static site in web/dist - host it anywhere (GitHub Pages, Netlify, S3, ...)
+```
 
 ## Project layout
 
 ```
-src/dsp/        STFT mask filter (SpectralMaskProcessor)
-src/model/      Painted mask grid, frequency scales
-src/capture/    Lock-free capture buffer + WAV cache
-src/analysis/   Spectrogram analysis and rendering
-src/session/    Shared per-document state (mask + capture) across plugin instances
-src/ui/         Spectrogram view, overview, theme
-tests/          Unit tests (JUCE UnitTest)
-tools/          Editor snapshot tool
+vst/src/dsp/        STFT mask filter (SpectralMaskProcessor)
+vst/src/model/      Painted mask grid, frequency scales
+vst/src/capture/    Lock-free capture buffer + WAV cache
+vst/src/analysis/   Spectrogram analysis and rendering
+vst/src/session/    Shared per-document state (mask + capture) across plugin instances
+vst/src/ui/         Spectrogram view, overview, theme
+vst/tests/          Unit tests (JUCE UnitTest)
+vst/tools/          Editor snapshot tool
+web/src/dsp/        FFT, spectrogram analysis, STFT mask filter, Web Worker
+web/src/model/      Painted mask grid, frequency scales
+web/src/ui/         Spectrogram canvas view
+web/src/audio/      Decoding and playback
+web/src/encode/     WAV and MP3 encoders
+web/tests/          Unit tests (Vitest)
 ```
 
 ## License
