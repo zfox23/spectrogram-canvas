@@ -19,7 +19,8 @@ float testSignal (juce::int64 i, double sr, juce::Random& rng)
 
     const double f0 = 100.0, f1 = 8000.0, dur = 8.0;
     const double k = std::log (f1 / f0) / dur;
-    double x = 0.25 * std::sin (twoPi * f0 * (std::exp (k * t) - 1.0) / k);
+    const double tc = std::fmod (t, dur); // repeat the chirp for long captures
+    double x = 0.25 * std::sin (twoPi * f0 * (std::exp (k * tc) - 1.0) / k);
 
     for (int h = 1; h <= 6; ++h)
         x += 0.12 / h * std::sin (twoPi * 220.0 * h * t);
@@ -39,6 +40,10 @@ int main (int argc, char** argv)
     const int width = argc > 3 ? juce::String (argv[2]).getIntValue() : 1100;
     const int height = argc > 3 ? juce::String (argv[3]).getIntValue() : 700;
 
+    // Optional 4th argument: comma-separated options, e.g. "invert,linear,mel,zoom,long".
+    const auto options = juce::StringArray::fromTokens (argc > 4 ? argv[4] : "", ",", "");
+    const double seconds = options.contains ("long") ? 180.0 : 8.0;
+
     SpectrogramDrawFilterProcessor proc;
     const double sr = 44100.0;
     const int block = 512;
@@ -51,7 +56,7 @@ int main (int argc, char** argv)
     juce::AudioBuffer<float> buffer (2, block);
     juce::MidiBuffer midi;
     juce::Random rng (42);
-    const juce::int64 total = (juce::int64) (sr * 8.0);
+    const juce::int64 total = (juce::int64) (sr * seconds);
     for (juce::int64 pos = 0; pos < total; pos += block)
     {
         for (int i = 0; i < block; ++i)
@@ -87,8 +92,6 @@ int main (int argc, char** argv)
         lastVersion = v;
     }
 
-    // Optional 4th argument: comma-separated options, e.g. "invert,linear".
-    const auto options = juce::StringArray::fromTokens (argc > 4 ? argv[4] : "", ",", "");
     auto& params = proc.getParameters();
     if (options.contains ("invert"))
         params.getParameter (ParamIDs::invert)->setValueNotifyingHost (1.0f);

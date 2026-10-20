@@ -90,6 +90,12 @@ void SpectrogramStore::analyse (const CaptureBuffer& capture, juce::int64 start,
 //==============================================================================
 juce::Colour SpectrogramStore::colourFor (uint8_t value)
 {
+    const auto& p = getColourTable()[value];
+    return juce::Colour (p.getRed(), p.getGreen(), p.getBlue());
+}
+
+const std::array<juce::PixelARGB, 256>& SpectrogramStore::getColourTable()
+{
     // Magma-like ramp: black -> indigo -> magenta -> orange -> pale yellow.
     static const std::array<juce::PixelARGB, 256> lut = [] {
         const juce::Colour stops[] = { juce::Colour (0xff000004), juce::Colour (0xff1c1044), juce::Colour (0xff4f127b),
@@ -106,8 +112,7 @@ juce::Colour SpectrogramStore::colourFor (uint8_t value)
         return table;
     }();
 
-    const auto& p = lut[value];
-    return juce::Colour (p.getRed(), p.getGreen(), p.getBlue());
+    return lut;
 }
 
 void SpectrogramStore::render (juce::Image& image, const View& view) const
@@ -117,7 +122,7 @@ void SpectrogramStore::render (juce::Image& image, const View& view) const
         return;
 
     // Bin range covered by each pixel row (top row = highest frequency).
-    std::vector<int> binLo ((size_t) h), binHi ((size_t) h);
+    std::vector<int> binLo ((size_t) h), binHi ((size_t) h), binStep ((size_t) h);
     const double binPerHz = size / sampleRate;
     for (int y = 0; y < h; ++y)
     {
@@ -128,30 +133,45 @@ void SpectrogramStore::render (juce::Image& image, const View& view) const
         const int hi = juce::jlimit (0, numBins - 1, (int) std::floor (hzTop * binPerHz + 0.5));
         binLo[(size_t) y] = juce::jmin (lo, hi);
         binHi[(size_t) y] = juce::jmax (lo, hi);
+        binStep[(size_t) y] = juce::jmax (1, (binHi[(size_t) y] - binLo[(size_t) y] + 1) / kMaxBinsPerPixel);
     }
 
     const double framesPerSecond = sampleRate / hop;
     const juce::Image::BitmapData bitmap (image, juce::Image::BitmapData::writeOnly);
+    const auto& lut = getColourTable();
+
+    // Each pixel shows the loudest of a few sampled frames x bins it covers (max-pooling),
+    // so narrow features stay visible when zoomed out.
+    std::array<const std::atomic<uint8_t>*, kMaxFramesPerPixel> rows {};
 
     for (int x = 0; x < w; ++x)
     {
         const double t0 = view.startSeconds + (view.endSeconds - view.startSeconds) * x / w;
         const double t1 = view.startSeconds + (view.endSeconds - view.startSeconds) * (x + 1) / w;
-        juce::int64 f0 = (juce::int64) std::llround (t0 * framesPerSecond);
-        juce::int64 f1 = juce::jmax (f0, (juce::int64) std::llround (t1 * framesPerSecond) - 1);
-        const juce::int64 frameStep = juce::jmax ((juce::int64) 1, (f1 - f0 + 1) / 8);
+        const juce::int64 f0 = (juce::int64) std::llround (t0 * framesPerSecond);
+        const juce::int64 f1 = juce::jmax (f0, (juce::int64) std::llround (t1 * framesPerSecond) - 1);
+        const juce::int64 frameStep = juce::jmax ((juce::int64) 1, (f1 - f0 + 1) / kMaxFramesPerPixel);
+
+        int numRows = 0;
+        for (juce::int64 f = f0; f <= f1 && numRows < kMaxFramesPerPixel; f += frameStep)
+            if (f >= 0)
+                if (const auto* chunk = getChunk (f / kFramesPerChunk))
+                    rows[(size_t) numRows++] = chunk + (f % kFramesPerChunk) * numBins;
 
         for (int y = 0; y < h; ++y)
         {
-            const int b0 = binLo[(size_t) y], b1 = binHi[(size_t) y];
-            const int binStep = juce::jmax (1, (b1 - b0 + 1) / 16);
             uint8_t v = 0;
+            const int b0 = binLo[(size_t) y], b1 = binHi[(size_t) y], step = binStep[(size_t) y];
+            for (int r = 0; r < numRows; ++r)
+                for (int b = b0; b <= b1; b += step)
+                    v = juce::jmax (v, rows[(size_t) r][b].load (std::memory_order_relaxed));
 
-            for (juce::int64 f = f0; f <= f1; f += frameStep)
-                for (int b = b0; b <= b1; b += binStep)
-                    v = juce::jmax (v, getValue (f, b));
-
-            bitmap.setPixelColour (x, y, colourFor (v));
+            auto* pixel = bitmap.getPixelPointer (x, y);
+            const auto& c = lut[v];
+            if (bitmap.pixelFormat == juce::Image::RGB)
+                reinterpret_cast<juce::PixelRGB*> (pixel)->set (c);
+            else
+                reinterpret_cast<juce::PixelARGB*> (pixel)->set (c);
         }
     }
 }

@@ -2,6 +2,7 @@
 
 #include "ui/Theme.h"
 
+#include <array>
 #include <cmath>
 
 namespace sdf
@@ -21,7 +22,20 @@ void renderMaskOverlay (juce::Image& image, const MaskGrid& mask, const ViewStat
         rows[(size_t) y] = (float) MaskGrid::hzToRow (view.scale.normToHz (norm));
     }
 
-    const auto paintColour = Theme::paint;
+    // Overlay colour for each mask level: dim what is filtered out, tint what was painted.
+    std::array<juce::PixelARGB, 256> lut {};
+    for (int i = 0; i < 256; ++i)
+    {
+        const float m = (float) i / 255.0f;
+        const float audible = invert ? 1.0f - m : m;
+        const float dim = 0.4f * (1.0f - audible);
+        const float tint = 0.45f * m;
+        const float alpha = dim + tint - dim * tint;
+        auto c = alpha > 0.0f ? juce::Colours::black.interpolatedWith (Theme::paint, tint / juce::jmax (alpha, 1.0e-6f)).withAlpha (alpha)
+                              : juce::Colours::transparentBlack;
+        lut[(size_t) i] = c.getPixelARGB(); // premultiplied
+    }
+
     const juce::Image::BitmapData bitmap (image, x0, 0, x1 - x0 + 1, h, juce::Image::BitmapData::writeOnly);
 
     for (int x = x0; x <= x1; ++x)
@@ -31,16 +45,8 @@ void renderMaskOverlay (juce::Image& image, const MaskGrid& mask, const ViewStat
 
         for (int y = 0; y < h; ++y)
         {
-            const float m = values[(size_t) y];
-            const float audible = invert ? 1.0f - m : m;
-            // Dim what is filtered out, and tint what was painted.
-            const float dim = 0.4f * (1.0f - audible);
-            const float tint = 0.45f * m;
-            const float alpha = dim + tint - dim * tint;
-            juce::Colour c = alpha > 0.0f
-                                 ? juce::Colours::black.interpolatedWith (paintColour, tint / juce::jmax (alpha, 1.0e-6f)).withAlpha (alpha)
-                                 : juce::Colours::transparentBlack;
-            bitmap.setPixelColour (x - x0, y, c);
+            const int level = juce::jlimit (0, 255, (int) (values[(size_t) y] * 255.0f + 0.5f));
+            reinterpret_cast<juce::PixelARGB*> (bitmap.getPixelPointer (x - x0, y))->set (lut[(size_t) level]);
         }
     }
 }
@@ -50,6 +56,7 @@ SpectrogramView::SpectrogramView (ViewState& v) : view (v)
 {
     setMouseCursor (juce::MouseCursor::CrosshairCursor);
     setWantsKeyboardFocus (false);
+    setOpaque (true);
 }
 
 void SpectrogramView::setSession (std::shared_ptr<Session> s)
@@ -160,8 +167,36 @@ void SpectrogramView::refresh (juce::int64 playheadSample, double sampleRate, bo
         repaint ((int) playheadX - 2, plot.getY(), 5, plot.getHeight());
     }
 
+    // The visible window changed since the images were rendered (zoom, pan, scrub, scale).
+    if (! sameWindow (currentWindow(), renderedView))
+        repaint();
+
     if (specDirty || overlayDirty || overlayDirtyX1 >= overlayDirtyX0)
         repaint();
+}
+
+SpectrogramStore::View SpectrogramView::currentWindow() const
+{
+    return { view.startSeconds, view.endSeconds, view.scale, view.normLow, view.normHigh };
+}
+
+bool SpectrogramView::sameScale (const SpectrogramStore::View& a, const SpectrogramStore::View& b)
+{
+    return a.scale.type == b.scale.type && a.scale.minHz == b.scale.minHz && a.scale.maxHz == b.scale.maxHz;
+}
+
+bool SpectrogramView::sameWindow (const SpectrogramStore::View& a, const SpectrogramStore::View& b)
+{
+    return a.startSeconds == b.startSeconds && a.endSeconds == b.endSeconds && a.normLow == b.normLow
+           && a.normHigh == b.normHigh && sameScale (a, b);
+}
+
+void SpectrogramView::updateCursor()
+{
+    if (drag == Drag::pan || drag == Drag::scrub)
+        setMouseCursor (juce::MouseCursor::DraggingHandCursor);
+    else
+        setMouseCursor (juce::MouseCursor::CrosshairCursor);
 }
 
 void SpectrogramView::paint (juce::Graphics& g)
@@ -171,31 +206,79 @@ void SpectrogramView::paint (juce::Graphics& g)
     if (plot.isEmpty())
         return;
 
+    const auto now = juce::Time::getMillisecondCounter();
     const auto spec = session != nullptr ? session->getSpectrogram() : nullptr;
-    SpectrogramStore::View sv { view.startSeconds, view.endSeconds, view.scale, view.normLow, view.normHigh };
+    const auto sv = currentWindow();
 
+    if (! sameWindow (sv, lastSeenView))
+    {
+        lastSeenView = sv;
+        lastViewChangeMs = now;
+    }
+
+    bool sizeChanged = false;
     if (specImage.getWidth() != plot.getWidth() || specImage.getHeight() != plot.getHeight())
     {
-        specImage = juce::Image (juce::Image::RGB, plot.getWidth(), plot.getHeight(), true);
-        overlayImage = juce::Image (juce::Image::ARGB, plot.getWidth(), plot.getHeight(), true);
-        specDirty = overlayDirty = true;
+        specImage = SpectrogramStore::makeImage (juce::Image::RGB, plot.getWidth(), plot.getHeight());
+        overlayImage = SpectrogramStore::makeImage (juce::Image::ARGB, plot.getWidth(), plot.getHeight());
+        specDirty = overlayDirty = sizeChanged = true;
+        hasRendered = false;
     }
 
-    // Zooming, panning, scrubbing from the overview or switching scale all change the window.
-    if (sv.startSeconds != renderedView.startSeconds || sv.endSeconds != renderedView.endSeconds
-        || sv.normLow != renderedView.normLow || sv.normHigh != renderedView.normHigh
-        || sv.scale.type != renderedView.scale.type || sv.scale.minHz != renderedView.scale.minHz
-        || sv.scale.maxHz != renderedView.scale.maxHz)
+    // While the window is moving, stretch the last render to the new window (cheap and exact
+    // for the parts it covers), and do a full render at most every kRenderIntervalMs and once
+    // the motion settles. refresh() keeps repainting until the render matches the window.
+    const bool windowMoved = ! sameWindow (sv, renderedView);
+    const bool interacting = now - lastViewChangeMs < kSettleMs && now - lastFullRenderMs < kRenderIntervalMs;
+    if (windowMoved && hasRendered && ! sizeChanged && sameScale (sv, renderedView) && interacting
+        && drag != Drag::paint && drag != Drag::erase)
     {
-        specDirty = overlayDirty = true;
-        renderedView = sv;
+        drawStretchedPreview (g, plot, sv);
     }
+    else
+    {
+        if (windowMoved)
+        {
+            specDirty = overlayDirty = true;
+            renderedView = sv;
+        }
+        renderImages (spec, plot);
+        g.drawImageAt (specImage, plot.getX(), plot.getY());
+        g.drawImageAt (overlayImage, plot.getX(), plot.getY());
+    }
+
+    paintDecorations (g, plot);
+}
+
+void SpectrogramView::drawStretchedPreview (juce::Graphics& g, juce::Rectangle<int> plot, const SpectrogramStore::View& sv)
+{
+    const auto& r = renderedView;
+    const double w = plot.getWidth(), h = plot.getHeight();
+    const double sx = (r.endSeconds - r.startSeconds) / (sv.endSeconds - sv.startSeconds);
+    const double tx = (r.startSeconds - sv.startSeconds) / (sv.endSeconds - sv.startSeconds) * w;
+    const double sy = (r.normHigh - r.normLow) / (sv.normHigh - sv.normLow);
+    const double ty = (sv.normHigh - r.normHigh) / (sv.normHigh - sv.normLow) * h;
+    const auto transform = juce::AffineTransform::scale ((float) sx, (float) sy)
+                               .translated ((float) (tx + plot.getX()), (float) (ty + plot.getY()));
+
+    juce::Graphics::ScopedSaveState ss (g);
+    g.reduceClipRegion (plot);
+    g.setColour (SpectrogramStore::colourFor (0));
+    g.fillRect (plot);
+    g.setImageResamplingQuality (juce::Graphics::lowResamplingQuality);
+    g.drawImageTransformed (specImage, transform);
+    g.drawImageTransformed (overlayImage, transform);
+}
+
+void SpectrogramView::renderImages (const std::shared_ptr<SpectrogramStore>& spec, juce::Rectangle<int> plot)
+{
+    bool rendered = false;
 
     if (specDirty)
     {
         if (spec != nullptr)
         {
-            spec->render (specImage, sv);
+            spec->render (specImage, renderedView);
             renderedSpecVersion = spec->getVersion();
         }
         else
@@ -205,6 +288,7 @@ void SpectrogramView::paint (juce::Graphics& g)
         renderedStore = spec.get();
         lastSpecRenderMs = juce::Time::getMillisecondCounter();
         specDirty = false;
+        rendered = true;
     }
 
     if (session != nullptr)
@@ -219,15 +303,20 @@ void SpectrogramView::paint (juce::Graphics& g)
             overlayImage.clear ({ overlayDirtyX0, 0, overlayDirtyX1 - overlayDirtyX0 + 1, overlayImage.getHeight() });
             renderMaskOverlay (overlayImage, session->mask, view, invert, overlayDirtyX0, overlayDirtyX1);
             renderedMaskVersion = session->mask.getVersion();
+            rendered = true;
         }
         overlayDirty = false;
         overlayDirtyX0 = 0;
         overlayDirtyX1 = -1;
     }
 
-    g.drawImageAt (specImage, plot.getX(), plot.getY());
-    g.drawImageAt (overlayImage, plot.getX(), plot.getY());
+    if (rendered)
+        lastFullRenderMs = juce::Time::getMillisecondCounter();
+    hasRendered = true;
+}
 
+void SpectrogramView::paintDecorations (juce::Graphics& g, juce::Rectangle<int> plot)
+{
     {
         juce::Graphics::ScopedSaveState ss (g);
         g.reduceClipRegion (plot);
@@ -244,7 +333,7 @@ void SpectrogramView::paint (juce::Graphics& g)
             g.drawVerticalLine ((int) playheadX, (float) plot.getY(), (float) plot.getBottom());
         }
 
-        if (mouseInside || drag == Drag::paint || drag == Drag::erase)
+        if ((mouseInside && drag == Drag::none) || drag == Drag::paint || drag == Drag::erase)
         {
             const auto colour = drag == Drag::erase ? Theme::erase : juce::Colours::white;
             g.setColour (colour.withAlpha (0.9f));
@@ -396,12 +485,17 @@ void SpectrogramView::mouseDown (const juce::MouseEvent& e)
 {
     mousePos = e.position;
 
-    if (e.mods.isMiddleButtonDown() || (e.mods.isLeftButtonDown() && e.mods.isAltDown()))
+    // Middle-drag scrubs through time; Alt + left-drag pans both time and frequency.
+    const bool scrub = e.mods.isMiddleButtonDown();
+    const bool pan = e.mods.isLeftButtonDown() && e.mods.isAltDown();
+
+    if (scrub || pan)
     {
-        drag = Drag::pan;
+        drag = scrub ? Drag::scrub : Drag::pan;
         panStartSeconds = view.startSeconds;
         panStartNormLow = view.normLow;
-        setMouseCursor (juce::MouseCursor::DraggingHandCursor);
+        updateCursor();
+        repaint();
         return;
     }
 
@@ -419,14 +513,18 @@ void SpectrogramView::mouseDrag (const juce::MouseEvent& e)
     repaintBrush();
     mousePos = e.position;
 
-    if (drag == Drag::pan)
+    if (drag == Drag::pan || drag == Drag::scrub)
     {
+        // The content follows the mouse, like grabbing the page.
         const auto plot = getPlotArea();
         const auto offset = e.getOffsetFromDragStart().toDouble();
         const double dt = -offset.x / plot.getWidth() * view.getSpan();
-        const double dn = offset.y / plot.getHeight() * (view.normHigh - view.normLow);
         view.setTimeRange (panStartSeconds + dt, panStartSeconds + dt + view.getSpan());
-        view.setFreqRange (panStartNormLow + dn, panStartNormLow + dn + (view.normHigh - view.normLow));
+        if (drag == Drag::pan)
+        {
+            const double dn = offset.y / plot.getHeight() * (view.normHigh - view.normLow);
+            view.setFreqRange (panStartNormLow + dn, panStartNormLow + dn + (view.normHigh - view.normLow));
+        }
         return;
     }
 
@@ -451,10 +549,8 @@ void SpectrogramView::mouseUp (const juce::MouseEvent&)
     if ((drag == Drag::paint || drag == Drag::erase) && session != nullptr)
         session->mask.endStroke();
 
-    if (drag == Drag::pan)
-        setMouseCursor (juce::MouseCursor::CrosshairCursor);
-
     drag = Drag::none;
+    updateCursor();
     repaint();
 }
 

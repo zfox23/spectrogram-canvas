@@ -85,7 +85,7 @@ void OverviewView::paint (juce::Graphics& g)
 
     if (image.getWidth() != plot.getWidth() || image.getHeight() != plot.getHeight())
     {
-        image = juce::Image (juce::Image::ARGB, plot.getWidth(), plot.getHeight(), true);
+        image = SpectrogramStore::makeImage (juce::Image::ARGB, plot.getWidth(), plot.getHeight());
         dirty = true;
     }
 
@@ -103,7 +103,7 @@ void OverviewView::paint (juce::Graphics& g)
         else
             image.clear (image.getBounds(), SpectrogramStore::colourFor (0));
 
-        juce::Image overlay (juce::Image::ARGB, image.getWidth(), image.getHeight(), true);
+        auto overlay = SpectrogramStore::makeImage (juce::Image::ARGB, image.getWidth(), image.getHeight());
         renderMaskOverlay (overlay, session->mask, whole, invert, 0, overlay.getWidth() - 1);
         {
             juce::Graphics ig (image);

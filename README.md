@@ -32,7 +32,8 @@ was captured from.
 | **Ctrl + wheel** | Zoom time around the cursor |
 | **Ctrl + Shift + wheel** | Zoom frequency around the cursor |
 | **Shift + wheel** | Scroll in time |
-| **Middle-drag** or **Alt + left-drag** | Pan |
+| **Middle-drag** | Scrub through time |
+| **Alt + left-drag** | Pan time and frequency |
 | **Ctrl+Z / Ctrl+Y** | Undo / redo |
 | Overview strip | Drag the box to move through time, drag its edges to zoom, click to jump, wheel to zoom |
 | **Capture** | Record the audio passing through (stops automatically when playback stops) |

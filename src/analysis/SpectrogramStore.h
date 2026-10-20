@@ -3,6 +3,7 @@
 #include <juce_dsp/juce_dsp.h>
 #include <juce_graphics/juce_graphics.h>
 
+#include <array>
 #include <atomic>
 #include <memory>
 #include <vector>
@@ -52,9 +53,18 @@ public:
     void render (juce::Image& image, const View& view) const;
 
     static juce::Colour colourFor (uint8_t value);
+    static const std::array<juce::PixelARGB, 256>& getColourTable();
+
+    /** Images that are written pixel-by-pixel must be software images (not Direct2D). */
+    static juce::Image makeImage (juce::Image::PixelFormat format, int w, int h)
+    {
+        return juce::Image (format, juce::jmax (1, w), juce::jmax (1, h), true, juce::SoftwareImageType());
+    }
 
 private:
     static constexpr int kFramesPerChunk = 256;
+    static constexpr int kMaxFramesPerPixel = 4;
+    static constexpr int kMaxBinsPerPixel = 6;
     using Chunk = std::unique_ptr<std::atomic<uint8_t>[]>;
 
     std::atomic<uint8_t>* getChunk (juce::int64 chunkIndex) const noexcept;

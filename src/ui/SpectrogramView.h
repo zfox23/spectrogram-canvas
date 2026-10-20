@@ -50,6 +50,14 @@ private:
     double yToNorm (float y) const;
     float hzToY (double hz) const;
 
+    SpectrogramStore::View currentWindow() const;
+    static bool sameScale (const SpectrogramStore::View& a, const SpectrogramStore::View& b);
+    static bool sameWindow (const SpectrogramStore::View& a, const SpectrogramStore::View& b);
+    void renderImages (const std::shared_ptr<SpectrogramStore>& spec, juce::Rectangle<int> plot);
+    void drawStretchedPreview (juce::Graphics&, juce::Rectangle<int> plot, const SpectrogramStore::View& window);
+    void paintDecorations (juce::Graphics&, juce::Rectangle<int> plot);
+    void updateCursor();
+
     void stampAt (juce::Point<float> p);
     void markOverlayDirty (float x0, float x1);
     void drawRulers (juce::Graphics&, juce::Rectangle<int> plot);
@@ -64,6 +72,10 @@ private:
     juce::uint32 lastSpecRenderMs = 0;
     bool specDirty = true, overlayDirty = true;
     SpectrogramStore::View renderedView; // the window the cached images were rendered for
+    SpectrogramStore::View lastSeenView; // the window at the last paint, to detect motion
+    juce::uint32 lastViewChangeMs = 0, lastFullRenderMs = 0;
+    bool hasRendered = false;
+    static constexpr juce::uint32 kSettleMs = 60, kRenderIntervalMs = 100;
     int overlayDirtyX0 = 0, overlayDirtyX1 = -1;
 
     float brushRadius = 20.0f, hardness = 0.5f;
@@ -71,7 +83,7 @@ private:
     juce::Point<float> mousePos;
     bool mouseInside = false;
 
-    enum class Drag { none, paint, erase, pan };
+    enum class Drag { none, paint, erase, pan, scrub };
     Drag drag = Drag::none;
     juce::Point<float> lastStamp;
     double panStartSeconds = 0.0, panStartNormLow = 0.0;
