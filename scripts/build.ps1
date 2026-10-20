@@ -35,4 +35,10 @@ if ($Install) {
     New-Item -ItemType Directory -Force $dest | Out-Null
     Copy-Item -Recurse -Force $vst3 $dest
     Write-Host "Installed to $dest"
+
+    # Hosts pick one copy when several exist, so a stale system-wide copy would shadow this one.
+    $systemCopy = "$env:CommonProgramFiles\VST3\Spectrogram Draw Filter.vst3"
+    if (Test-Path $systemCopy) {
+        Write-Warning "An older copy exists at '$systemCopy' and may be loaded instead. Delete it (needs admin)."
+    }
 }
