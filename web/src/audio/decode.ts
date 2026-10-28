@@ -18,10 +18,19 @@ function sniffWavRate(buf: ArrayBuffer): number | null {
   return null;
 }
 
+/** Reads the sample rate from a FLAC STREAMINFO block, for the same reason. */
+export function sniffFlacRate(buf: ArrayBuffer): number | null {
+  if (buf.byteLength < 42) return null;
+  const b = new Uint8Array(buf, 0, 42);
+  if (String.fromCharCode(b[0], b[1], b[2], b[3]) !== 'fLaC' || (b[4] & 0x7f) !== 0) return null;
+  const rate = (b[18] << 12) | (b[19] << 4) | (b[20] >> 4);
+  return rate || null;
+}
+
 /** Decodes any audio file the browser understands, keeping the file's own sample rate when it can. */
 export async function decodeAudioFile(file: File): Promise<DecodedAudio> {
   const bytes = await file.arrayBuffer();
-  const rate = sniffWavRate(bytes);
+  const rate = sniffWavRate(bytes) ?? sniffFlacRate(bytes);
 
   const attempts: (() => BaseAudioContext)[] = [];
   if (rate) attempts.push(() => new OfflineAudioContext(1, 1, rate));

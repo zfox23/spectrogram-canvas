@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { FFT } from '../src/dsp/fft';
 import { analyse } from '../src/dsp/analysis';
 import { applyMask } from '../src/dsp/filter';
 import { MASK_ROWS, MaskGrid, hzToRow, rowToHz, type ScreenMapping } from '../src/model/maskGrid';
 import { encodeWav } from '../src/encode/wav';
 import { encodeMp3 } from '../src/encode/mp3';
+import { encodeFlac } from '../src/encode/flac';
+import { sniffFlacRate } from '../src/audio/decode';
 
 const SR = 44100;
 const sine = (hz: number, seconds: number, amp = 0.5) =>
@@ -115,5 +117,37 @@ describe('encoders', () => {
     const mp3 = encodeMp3([sine(440, 1), sine(660, 1)], SR, 128);
     expect(mp3.length).toBeGreaterThan(10000);
     expect(mp3[0]).toBe(0xff); // frame sync
+  });
+});
+
+describe('MaskGrid.cropped', () => {
+  it('keeps the paint that falls inside the cropped range, at the same times', () => {
+    const m = new MaskGrid(10);
+    const row = 300;
+    for (let c = 0; c < m.cols; c++) if (m.colToSeconds(c) >= 4 && m.colToSeconds(c) < 5) m.data[c * MASK_ROWS + row] = 255;
+    const out = m.cropped(3, 4);
+    expect(out.durationSeconds).toBe(4);
+    expect(out.sample(0.5, row)).toBe(0); // 3.5 s
+    expect(out.sample(1.5, row)).toBeCloseTo(1, 5); // 4.5 s
+    expect(out.sample(2.5, row)).toBe(0); // 5.5 s
+    expect(out.sample(1.5, row + 5)).toBe(0);
+  });
+});
+
+describe('encodeFlac', () => {
+  it('writes a valid, smaller-than-WAV 24-bit FLAC stream', async () => {
+    const l = sine(440, 1.3), r = sine(660, 1.3, 0.3);
+    // Under Node, libflac.js's emscripten loader only reads its .wasm from disk when fetch is absent.
+    vi.stubGlobal('fetch', undefined);
+    const flac = await encodeFlac([l, r], SR).finally(() => vi.unstubAllGlobals());
+    expect(String.fromCharCode(...flac.subarray(0, 4))).toBe('fLaC');
+    expect(sniffFlacRate(flac.buffer as ArrayBuffer)).toBe(SR);
+    const si = flac.subarray(8, 42);
+    expect(((si[12] >> 1) & 7) + 1).toBe(2); // channels
+    expect((((si[12] & 1) << 4) | (si[13] >> 4)) + 1).toBe(24); // bits per sample
+    const total = (si[13] & 0x0f) * 2 ** 32 + ((si[14] << 24) | (si[15] << 16) | (si[16] << 8) | si[17]) >>> 0;
+    expect(total).toBe(l.length);
+    expect(si.subarray(18, 34).some((v) => v !== 0)).toBe(true); // MD5 patched in
+    expect(flac.length).toBeLessThan(encodeWav([l, r], SR, 'pcm24').length * 0.7);
   });
 });

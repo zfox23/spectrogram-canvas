@@ -16,6 +16,7 @@ const els = {
   redo: $<HTMLButtonElement>('redo'), clear: $<HTMLButtonElement>('clear'), all: $<HTMLButtonElement>('all'),
   fit: $<HTMLButtonElement>('fit'), invert: $<HTMLInputElement>('invert'), bg: $<HTMLInputElement>('bg'),
   stop: $<HTMLButtonElement>('stop'), loopOn: $<HTMLInputElement>('loopOn'), clearLoop: $<HTMLButtonElement>('clearLoop'),
+  trim: $<HTMLButtonElement>('trim'),
   exportPng: $<HTMLButtonElement>('exportPng'), pngAudio: $<HTMLInputElement>('pngAudio'), importPng: $<HTMLInputElement>('importPng'),
   overview: $('overview'), bgOut: $('bgOut'), brush: $<HTMLInputElement>('brush'), hardness: $<HTMLInputElement>('hardness'),
   fft: $<HTMLSelectElement>('fft'), scale: $<HTMLSelectElement>('scale'), format: $<HTMLSelectElement>('format'),
@@ -42,6 +43,7 @@ let loaded = null as Loaded | null;
 let busy = false;
 let analysisToken = 0;
 let filtered: { key: string; channels: Float32Array[] } | null = null;
+let playerShows = 'original';
 
 const fftOrder = () => Number(els.fft.value) || DEFAULT_ORDER;
 const bgDb = () => Number(els.bg.value);
@@ -80,22 +82,56 @@ async function openFile(file: File): Promise<boolean> {
   try {
     player.stop();
     const [audio, hash] = await withBusy('Decoding…', () => Promise.all([decodeAudioFile(file), file.arrayBuffer().then(sha256Hex)]));
-    loaded = { ...audio, file, name: file.name, hash, mask: new MaskGrid(audio.duration) };
-    filtered = null;
     startMarker = 0;
     loopRange = null;
-    applyLoop();
-    view.setAudio(audio.duration, audio.sampleRate, loaded.mask);
-    player.setAudio(audio.channels, audio.sampleRate);
+    useAudio({ ...audio, file, name: file.name, hash, mask: new MaskGrid(audio.duration) });
     els.empty.classList.add('hidden');
     els.toolbar.setAttribute('aria-disabled', 'false');
-    refreshButtons();
     setStatus(`${file.name} — ${audio.channels.length === 1 ? 'mono' : audio.channels.length + ' ch'}, ${audio.sampleRate} Hz, ${fmt(audio.duration)}`);
     await analyseLoaded();
     return true;
   } catch (err) {
     setStatus(err instanceof Error ? err.message : String(err), true);
     return false;
+  }
+}
+
+/** Makes l the working audio; startMarker and loopRange must already be set for it. */
+function useAudio(l: Loaded) {
+  loaded = l;
+  filtered = null;
+  playerShows = 'original';
+  applyLoop();
+  view.setAudio(l.duration, l.sampleRate, l.mask);
+  player.setAudio(l.channels, l.sampleRate);
+  player.seek(startMarker);
+  view.playhead = startMarker;
+  refreshButtons();
+}
+
+/** Cuts the audio and the paint down to the loop range, so there is less to look at and exports are smaller. */
+async function trimToLoop() {
+  if (!loaded || busy || !loopRange) return;
+  try {
+    player.stop();
+    const l = loaded, sr = l.sampleRate;
+    const a = Math.round(loopRange.start * sr), b = Math.round(loopRange.end * sr);
+    const channels = l.channels.map((ch) => ch.slice(a, b));
+    const start = a / sr, duration = (b - a) / sr;
+    // The trimmed audio becomes the session's file: it is what PNG exports embed and hash.
+    const bytes = await withBusy('Trimming…', (p) => worker.flac(channels, sr, p));
+    const name = `${l.name.replace(/\.[^.]+$/, '')}-trim.flac`;
+    const file = new File([bytes as Uint8Array<ArrayBuffer>], name, { type: 'audio/flac' });
+    const hash = await sha256Hex(await file.arrayBuffer());
+    if (loaded !== l) return;
+    startMarker = Math.min(Math.max(startMarker - start, 0), duration);
+    loopRange = { start: 0, end: duration };
+    useAudio({ file, name, hash, channels, sampleRate: sr, duration, mask: l.mask.cropped(start, duration) });
+    setStatus(`Trimmed to ${fmt(duration)} (${fmt(start)}–${fmt(start + duration)} of ${l.name}). Reopen the original file to get the rest back.`);
+    onMaskEdited();
+    await analyseLoaded();
+  } catch (err) {
+    setStatus(`Trim failed: ${err instanceof Error ? err.message : err}`, true);
   }
 }
 
@@ -154,7 +190,6 @@ async function loadIntoPlayer() {
   }
   playerShows = els.listen.value === 'original' ? 'original' : filtered!.key;
 }
-let playerShows = 'original';
 
 async function togglePlay() {
   if (!loaded || busy) return;
@@ -222,6 +257,7 @@ function applyLoop() {
   view.startMarker = startMarker;
   player.setLoop(loopRange && els.loopOn.checked ? loopRange : null);
   els.clearLoop.disabled = !loopRange;
+  els.trim.disabled = !loopRange || !loaded || (loopRange.start <= 0 && loopRange.end >= loaded.duration);
   view.redraw();
 }
 
@@ -237,6 +273,7 @@ els.loopOn.addEventListener('change', () => {
   if (els.loopOn.checked && !loopRange) setStatus('Drag along the time ruler to set the loop points.');
 });
 els.clearLoop.addEventListener('click', () => { loopRange = null; applyLoop(); });
+els.trim.addEventListener('click', () => void trimToLoop());
 els.stop.addEventListener('click', () => stopToStart());
 
 function stopToStart() {

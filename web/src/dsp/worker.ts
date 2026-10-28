@@ -3,12 +3,14 @@ import { analyse, mixToMono } from './analysis';
 import { applyMask, type FilterSettings, type MaskData } from './filter';
 import { encodeWav, type WavFormat } from '../encode/wav';
 import { encodeMp3 } from '../encode/mp3';
+import { encodeFlac } from '../encode/flac';
 
 export type WorkerRequest =
   | { id: number; type: 'analyse'; channels: Float32Array[]; sampleRate: number; order: number }
   | { id: number; type: 'filter'; channels: Float32Array[]; sampleRate: number; order: number; mask: MaskData | null; settings: FilterSettings }
   | { id: number; type: 'wav'; channels: Float32Array[]; sampleRate: number; format: WavFormat }
-  | { id: number; type: 'mp3'; channels: Float32Array[]; sampleRate: number; kbps: number };
+  | { id: number; type: 'mp3'; channels: Float32Array[]; sampleRate: number; kbps: number }
+  | { id: number; type: 'flac'; channels: Float32Array[]; sampleRate: number };
 
 export type WorkerResponse =
   | { id: number; type: 'progress'; fraction: number }
@@ -17,7 +19,7 @@ export type WorkerResponse =
 
 const post = (msg: WorkerResponse, transfer: Transferable[] = []) => (self as DedicatedWorkerGlobalScope).postMessage(msg, transfer);
 
-self.onmessage = (e: MessageEvent<WorkerRequest>) => {
+self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
   const req = e.data;
   const progress = (fraction: number) => post({ id: req.id, type: 'progress', fraction });
   try {
@@ -39,6 +41,11 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       }
       case 'mp3': {
         const bytes = encodeMp3(req.channels, req.sampleRate, req.kbps, progress);
+        post({ id: req.id, type: 'done', result: bytes }, [bytes.buffer]);
+        break;
+      }
+      case 'flac': {
+        const bytes = await encodeFlac(req.channels, req.sampleRate, progress);
         post({ id: req.id, type: 'done', result: bytes }, [bytes.buffer]);
         break;
       }

@@ -45,4 +45,8 @@ export class DspWorker {
   mp3(channels: Float32Array[], sampleRate: number, kbps: number, onProgress?: (f: number) => void) {
     return this.call<Uint8Array>({ type: 'mp3', channels, sampleRate, kbps }, onProgress);
   }
+
+  flac(channels: Float32Array[], sampleRate: number, onProgress?: (f: number) => void) {
+    return this.call<Uint8Array>({ type: 'flac', channels, sampleRate }, onProgress);
+  }
 }

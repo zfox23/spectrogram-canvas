@@ -90,6 +90,21 @@ export class MaskGrid {
     return this.data.every((v) => v === 0);
   }
 
+  /** A new grid for the audio between start and start + duration seconds, carrying this one's paint over. */
+  cropped(start: number, duration: number): MaskGrid {
+    const out = new MaskGrid(duration);
+    const last = this.cols - 1;
+    for (let c = 0; c < out.cols; c++) {
+      const pos = Math.min(Math.max(this.secondsToCol(start + out.colToSeconds(c)), 0), last);
+      const c0 = Math.min(Math.floor(pos), Math.max(last - 1, 0));
+      const c1 = Math.min(c0 + 1, last);
+      const f = pos - c0;
+      const a = c0 * MASK_ROWS, b = c1 * MASK_ROWS, o = c * MASK_ROWS;
+      for (let r = 0; r < MASK_ROWS; r++) out.data[o + r] = Math.round(this.data[a + r] + f * (this.data[b + r] - this.data[a + r]));
+    }
+    return out;
+  }
+
   //==========================================================================
   static brushProfile(d: number, hardness: number): number {
     if (d >= 1) return 0;
