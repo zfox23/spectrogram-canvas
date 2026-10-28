@@ -9,7 +9,7 @@
 
 #include "model/MaskGrid.h"
 
-namespace sdf
+namespace sc
 {
 /**
     Streaming STFT filter: each frame's spectrum is multiplied by gains read from the
@@ -81,4 +81,4 @@ private:
     int currentOrder = kDefaultOrder;
     std::array<Engine, kNumSizes> engines;
 };
-} // namespace sdf
+} // namespace sc

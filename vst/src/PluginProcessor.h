@@ -9,7 +9,7 @@
 #include "host/HostTransport.h"
 #include "session/Session.h"
 
-namespace sdf
+namespace sc
 {
 namespace ParamIDs
 {
@@ -39,12 +39,12 @@ struct HostDiagnostics
     std::atomic<juce::uint32> lastProcessMs { 0 };
 };
 
-class SpectrogramDrawFilterProcessor : public juce::AudioProcessor,
+class SpectrogramCanvasProcessor : public juce::AudioProcessor,
                                        private juce::AsyncUpdater
 {
 public:
-    SpectrogramDrawFilterProcessor();
-    ~SpectrogramDrawFilterProcessor() override;
+    SpectrogramCanvasProcessor();
+    ~SpectrogramCanvasProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -122,6 +122,6 @@ private:
     juce::int64 expectedNextTimeline = -1;
     bool wasPlaying = false;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SpectrogramDrawFilterProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SpectrogramCanvasProcessor)
 };
-} // namespace sdf
+} // namespace sc

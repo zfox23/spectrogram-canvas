@@ -5,7 +5,7 @@
 #include <atomic>
 #include <optional>
 
-namespace sdf
+namespace sc
 {
 /** The host's loop range, in timeline seconds. */
 struct LoopRange
@@ -64,4 +64,4 @@ private:
     std::atomic<bool> playHeadValid { false }, playHeadLooping { false };
     std::atomic<double> playHeadStart { 0.0 }, playHeadEnd { 0.0 };
 };
-} // namespace sdf
+} // namespace sc

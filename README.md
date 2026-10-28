@@ -1,4 +1,6 @@
-# Spectrogram Draw Filter
+# Spectrogram Canvas
+
+*Formerly Spectrogram Draw Filter.*
 
 A VST3 effect that shows the spectrogram of the audio passing through it and lets you
 **paint the time-frequency regions you want to keep**. Everything you don't paint is
@@ -55,7 +57,7 @@ was captured from.
 
 ## Using it in Reaper
 
-1. Put *Spectrogram Draw Filter* on the track (or as take FX on the item).
+1. Put *Spectrogram Canvas* on the track (or as take FX on the item).
 2. Open its window, press **Capture**, and play the section you want to work on. Capture stops
    when you stop playback.
 3. Paint and play again, or loop the section and paint while it plays. Changes are heard immediately.
@@ -79,7 +81,7 @@ Notes:
 
 **As a realtime effect** (recommended — you hear changes live):
 
-1. Click **Effects** on the track's header and add *Spectrogram Draw Filter*.
+1. Click **Effects** on the track's header and add *Spectrogram Canvas*.
 2. Open its window, press **Capture**, and play the part of the track you want to work on.
 3. Stop playback. The spectrogram appears and capture stops by itself.
 4. Paint, then play again to hear the result. Keep painting and listening.
@@ -87,12 +89,12 @@ Notes:
 
 **As a destructive effect** (Effect menu):
 
-1. Select the audio, open *Effect → Spectrogram Draw Filter*, press **Capture**, then **Apply**.
+1. Select the audio, open *Effect → Spectrogram Canvas*, press **Capture**, then **Apply**.
    The audio is passed through unchanged while being recorded.
 2. Open the effect again (*Effect → Repeat* or the Effect menu). The captured spectrogram is shown.
 3. Paint, then **Apply**.
 
-Captured audio is cached in `%APPDATA%\SpectrogramDrawFilter\captures` so it survives closing the
+Captured audio is cached in `%APPDATA%\SpectrogramCanvas\captures` so it survives closing the
 plugin window. Cached files older than 30 days are deleted automatically.
 
 ## Building the plugin (Windows)
@@ -114,14 +116,21 @@ cmake --build --preset release
 ctest --preset release
 ```
 
-The plugin ends up in `vst/build/SpectrogramDrawFilter_artefacts/Release/VST3/`. After installing,
+The plugin ends up in `vst/build/SpectrogramCanvas_artefacts/Release/VST3/`. After installing,
 rescan in your host (Reaper: *Options → Preferences → Plug-ins → VST → Re-scan*;
 Audacity: *Effect → Plugin Manager → Rescan*).
 
-`vst/build/SdfSnapshot_artefacts/Release/SdfSnapshot.exe out.png [width height] [invert,linear]`
+Spectrogram Canvas is a new plugin as far as hosts are concerned: projects that used the old
+*Spectrogram Draw Filter* won't load it in its place. Keep the old `Spectrogram Draw Filter.vst3`
+installed for those projects, or swap in Spectrogram Canvas and re-capture and re-paint.
+Old captures in `%APPDATA%\SpectrogramDrawFilter` can be deleted.
+
+`vst/build/ScSnapshot_artefacts/Release/ScSnapshot.exe out.png [width height] [invert,linear]`
 renders the editor with synthetic audio to a PNG, which is handy for checking UI changes.
 
 ## Web app
+
+Try it: <https://zfox23.github.io/spectrogram-canvas/>
 
 `web/` is a static site (TypeScript + Vite, no backend). Open an audio file, paint the regions to
 keep, listen to the filtered result, and save it as WAV (16/24-bit or 32-bit float) or MP3.
@@ -130,6 +139,12 @@ browser (heavy work happens in a Web Worker).
 
 Differences from the plugin: there is no capture step (the whole file is analysed on load), and the
 filter is applied offline with no latency. The painting model, brush, controls and DSP are the same.
+
+**Export PNG** saves a picture of the painted spectrogram, captioned with the file name and date,
+with the whole session (painting, settings, view, loop) embedded in it. With **with audio** ticked it
+also embeds the audio file, so that one PNG is enough to reopen the session: drop it on the app.
+Sites that re-compress images (X, Instagram, most image hosts) strip this data; sending it as a file
+(Discord, email, cloud drives) keeps it.
 
 ```
 cd web

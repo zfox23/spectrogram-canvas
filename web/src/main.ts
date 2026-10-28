@@ -6,7 +6,7 @@ import { DEFAULT_ORDER } from './dsp/analysis';
 import { MASK_ROWS, MaskGrid } from './model/maskGrid';
 import { SpectrogramView } from './ui/view';
 import { OverviewView } from './ui/overview';
-import { base64ToBytes, bytesToBase64, embedState, extractState, sha256Hex } from './io/statePng';
+import { base64ToBytes, bytesToBase64, embedState, extractAudio, extractState, sha256Hex } from './io/statePng';
 import type { FreqScaleType } from './model/freqScale';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -16,7 +16,7 @@ const els = {
   redo: $<HTMLButtonElement>('redo'), clear: $<HTMLButtonElement>('clear'), all: $<HTMLButtonElement>('all'),
   fit: $<HTMLButtonElement>('fit'), invert: $<HTMLInputElement>('invert'), bg: $<HTMLInputElement>('bg'),
   stop: $<HTMLButtonElement>('stop'), loopOn: $<HTMLInputElement>('loopOn'), clearLoop: $<HTMLButtonElement>('clearLoop'),
-  exportPng: $<HTMLButtonElement>('exportPng'), importPng: $<HTMLInputElement>('importPng'),
+  exportPng: $<HTMLButtonElement>('exportPng'), pngAudio: $<HTMLInputElement>('pngAudio'), importPng: $<HTMLInputElement>('importPng'),
   overview: $('overview'), bgOut: $('bgOut'), brush: $<HTMLInputElement>('brush'), hardness: $<HTMLInputElement>('hardness'),
   fft: $<HTMLSelectElement>('fft'), scale: $<HTMLSelectElement>('scale'), format: $<HTMLSelectElement>('format'),
   save: $<HTMLButtonElement>('save'), stage: $('stage'), plot: $('plot'), empty: $('empty'),
@@ -24,6 +24,7 @@ const els = {
 };
 
 interface Loaded {
+  file: File;
   name: string;
   hash: string;
   channels: Float32Array[];
@@ -79,7 +80,7 @@ async function openFile(file: File): Promise<boolean> {
   try {
     player.stop();
     const [audio, hash] = await withBusy('Decoding…', () => Promise.all([decodeAudioFile(file), file.arrayBuffer().then(sha256Hex)]));
-    loaded = { ...audio, name: file.name, hash, mask: new MaskGrid(audio.duration) };
+    loaded = { ...audio, file, name: file.name, hash, mask: new MaskGrid(audio.duration) };
     filtered = null;
     startMarker = 0;
     loopRange = null;
@@ -246,7 +247,7 @@ function stopToStart() {
   view.redraw();
 }
 
-els.file.addEventListener('change', () => { const f = els.file.files?.[0]; if (f) void openFile(f); els.file.value = ''; });
+els.file.addEventListener('change', () => { const f = els.file.files?.[0]; if (f) void handleDrop([f]); els.file.value = ''; });
 els.play.addEventListener('click', () => void togglePlay());
 els.listen.addEventListener('change', () => { if (player.playing) { player.stop(); void togglePlay(); } });
 els.undo.addEventListener('click', undo);
@@ -284,8 +285,11 @@ els.stage.addEventListener('drop', (e) => void handleDrop([...((e as DragEvent).
 const STATE_VERSION = 1;
 const isPng = (f: File) => f.type === 'image/png' || /\.png$/i.test(f.name);
 
+const APP_ID = 'spectrogram-canvas';
+const LEGACY_APP_IDS = ['spectrogram-draw-filter']; // pre-rename exports
+
 interface AppState {
-  app: 'spectrogram-draw-filter';
+  app: string;
   version: number;
   file: { name: string; sha256: string; duration: number; sampleRate: number; channels: number };
   settings: { fftOrder: number; scale: string; invert: boolean; backgroundDb: number; brush: number; hardness: number; listen: string; format: string };
@@ -297,7 +301,7 @@ interface AppState {
 function captureState(): AppState {
   const l = loaded!;
   return {
-    app: 'spectrogram-draw-filter',
+    app: APP_ID,
     version: STATE_VERSION,
     file: { name: l.name, sha256: l.hash, duration: l.duration, sampleRate: l.sampleRate, channels: l.channels.length },
     settings: {
@@ -310,18 +314,33 @@ function captureState(): AppState {
   };
 }
 
+/** Local time as YYYY-MM-DD HH-mm. */
+function formatStamp(d: Date) {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}-${p(d.getMinutes())}`;
+}
+
 async function exportPng() {
   if (!loaded || busy) return;
   try {
     const state = captureState();
-    const canvas = view.renderPreview(1600, 640);
+    const withAudio = els.pngAudio.checked;
+    const appUrl = location.origin + location.pathname;
+    const canvas = view.renderShareCard({
+      title: 'Spectrogram Canvas',
+      date: formatStamp(new Date()),
+      fileName: loaded.name,
+      hint: withAudio ? `Open this PNG at ${appUrl}` : `Open at ${appUrl} together with ${loaded.name}`,
+      audioEmbedded: withAudio,
+    });
     const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'));
     if (!blob) throw new Error('Could not render the image.');
-    const png = await embedState(new Uint8Array(await blob.arrayBuffer()), state);
+    const audio = withAudio ? new Uint8Array(await loaded.file.arrayBuffer()) : undefined;
+    const png = await embedState(new Uint8Array(await blob.arrayBuffer()), state, audio);
     const url = URL.createObjectURL(new Blob([png as Uint8Array<ArrayBuffer>], { type: 'image/png' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${loaded.name.replace(/\.[^.]+$/, '')}-sdf.png`;
+    a.download = `${loaded.name.replace(/\.[^.]+$/, '')}-spectrogram-canvas.png`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
     setStatus(`Exported ${a.download} (${(png.length / 1048576).toFixed(1)} MB)`);
@@ -334,13 +353,22 @@ const num = (v: unknown, fallback: number) => (typeof v === 'number' && Number.i
 const pick = (el: HTMLSelectElement, v: unknown) => { if (typeof v === 'string' && [...el.options].some((o) => o.value === v)) el.value = v; };
 
 async function importPngFile(file: File): Promise<boolean> {
-  if (!loaded) { setStatus('Open the matching audio file first, then import the PNG.', true); return false; }
   try {
-    const raw = await extractState(new Uint8Array(await file.arrayBuffer()));
-    const s = raw as Partial<AppState> | null;
-    if (!s || s.app !== 'spectrogram-draw-filter') throw new Error(`${file.name} has no Spectrogram Draw Filter state in it.`);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const s = (await extractState(bytes)) as Partial<AppState> | null;
+    if (!s || typeof s.app !== 'string' || ![APP_ID, ...LEGACY_APP_IDS].includes(s.app)) throw new Error(`${file.name} has no Spectrogram Canvas state in it.`);
     if (num(s.version, 0) > STATE_VERSION) throw new Error(`${file.name} was made by a newer version of this app.`);
     if (!s.file || typeof s.file.sha256 !== 'string') throw new Error(`${file.name} is missing its audio file hash.`);
+
+    // A PNG exported "with audio" carries the original file; use it unless that file is already loaded.
+    const embedded = extractAudio(bytes);
+    if (embedded && loaded?.hash !== s.file.sha256) {
+      const name = typeof s.file.name === 'string' && s.file.name ? s.file.name : 'audio';
+      if (!(await openFile(new File([embedded as Uint8Array<ArrayBuffer>], name)))) return false;
+    }
+    if (!loaded) {
+      throw new Error(`${file.name} has no audio in it (it may have been stripped by the site it was shared on). Open the matching audio file first, then import the PNG.`);
+    }
     if (s.file.sha256 !== loaded.hash) {
       throw new Error(`File hash mismatch: ${file.name} was made from “${s.file.name}” (${s.file.sha256.slice(0, 12)}…), but the loaded file “${loaded.name}” is ${loaded.hash.slice(0, 12)}….`);
     }

@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace sdf
+namespace sc
 {
 enum class FreqScaleType
 {
@@ -50,4 +50,4 @@ struct FreqScale
         }
     }
 };
-} // namespace sdf
+} // namespace sc

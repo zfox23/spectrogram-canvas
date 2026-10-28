@@ -1,6 +1,6 @@
 #include "PluginEditor.h"
 
-namespace sdf
+namespace sc
 {
 namespace
 {
@@ -9,7 +9,7 @@ namespace
     constexpr int kGap = 6;
 } // namespace
 
-SpectrogramDrawFilterEditor::SpectrogramDrawFilterEditor (SpectrogramDrawFilterProcessor& p)
+SpectrogramCanvasEditor::SpectrogramCanvasEditor (SpectrogramCanvasProcessor& p)
     : AudioProcessorEditor (&p), processor (p)
 {
     setLookAndFeel (&lookAndFeel);
@@ -113,7 +113,7 @@ SpectrogramDrawFilterEditor::SpectrogramDrawFilterEditor (SpectrogramDrawFilterP
     startTimerHz (30);
 }
 
-SpectrogramDrawFilterEditor::~SpectrogramDrawFilterEditor()
+SpectrogramCanvasEditor::~SpectrogramCanvasEditor()
 {
     auto& ui = processor.getUiState();
     ui.setProperty ("viewStart", viewState.startSeconds, nullptr);
@@ -124,7 +124,7 @@ SpectrogramDrawFilterEditor::~SpectrogramDrawFilterEditor()
 }
 
 //==============================================================================
-void SpectrogramDrawFilterEditor::paint (juce::Graphics& g)
+void SpectrogramCanvasEditor::paint (juce::Graphics& g)
 {
     g.fillAll (Theme::background);
     g.setColour (Theme::panel);
@@ -133,7 +133,7 @@ void SpectrogramDrawFilterEditor::paint (juce::Graphics& g)
     g.drawHorizontalLine (topBarHeight - 1, 0.0f, (float) getWidth());
 }
 
-void SpectrogramDrawFilterEditor::paintOverChildren (juce::Graphics& g)
+void SpectrogramCanvasEditor::paintOverChildren (juce::Graphics& g)
 {
     if (! showDiagnostics)
         return;
@@ -146,7 +146,7 @@ void SpectrogramDrawFilterEditor::paintOverChildren (juce::Graphics& g)
     g.drawMultiLineText (diagnosticsText, area.getX() + 12, area.getY() + 20, area.getWidth() - 24);
 }
 
-void SpectrogramDrawFilterEditor::resized()
+void SpectrogramCanvasEditor::resized()
 {
     auto& ui = processor.getUiState();
     ui.setProperty ("width", getWidth(), nullptr);
@@ -221,7 +221,7 @@ void SpectrogramDrawFilterEditor::resized()
     spectrogramView.setBounds (bounds);
 }
 
-bool SpectrogramDrawFilterEditor::keyPressed (const juce::KeyPress& key)
+bool SpectrogramCanvasEditor::keyPressed (const juce::KeyPress& key)
 {
     const auto mods = key.getModifiers();
     if (mods.isCommandDown() && key.getKeyCode() == 'Z')
@@ -237,26 +237,26 @@ bool SpectrogramDrawFilterEditor::keyPressed (const juce::KeyPress& key)
     return false;
 }
 
-void SpectrogramDrawFilterEditor::undo()
+void SpectrogramCanvasEditor::undo()
 {
     if (session != nullptr)
         session->mask.undo();
 }
 
-void SpectrogramDrawFilterEditor::redo()
+void SpectrogramCanvasEditor::redo()
 {
     if (session != nullptr)
         session->mask.redo();
 }
 
-void SpectrogramDrawFilterEditor::updateBrushLabel()
+void SpectrogramCanvasEditor::updateBrushLabel()
 {
     brushLabel.setText ("Brush " + juce::String (juce::roundToInt (spectrogramView.getBrushRadius() * 2)) + " px",
                         juce::dontSendNotification);
 }
 
 //==============================================================================
-void SpectrogramDrawFilterEditor::syncSession()
+void SpectrogramCanvasEditor::syncSession()
 {
     auto current = processor.getSession();
     if (current != session)
@@ -267,7 +267,7 @@ void SpectrogramDrawFilterEditor::syncSession()
     }
 }
 
-void SpectrogramDrawFilterEditor::updateDocumentLength()
+void SpectrogramCanvasEditor::updateDocumentLength()
 {
     if (session == nullptr)
         return;
@@ -286,7 +286,7 @@ void SpectrogramDrawFilterEditor::updateDocumentLength()
     viewState.setMaxHz (sr / 2.0);
 }
 
-void SpectrogramDrawFilterEditor::timerCallback()
+void SpectrogramCanvasEditor::timerCallback()
 {
     syncSession();
     if (session == nullptr)
@@ -340,7 +340,7 @@ void SpectrogramDrawFilterEditor::timerCallback()
     }
 }
 
-juce::String SpectrogramDrawFilterEditor::buildDiagnosticsText() const
+juce::String SpectrogramCanvasEditor::buildDiagnosticsText() const
 {
     const auto& d = processor.getDiagnostics();
     const double sr = d.sampleRate.load();
@@ -380,4 +380,4 @@ juce::String SpectrogramDrawFilterEditor::buildDiagnosticsText() const
     }
     return t;
 }
-} // namespace sdf
+} // namespace sc

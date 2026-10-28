@@ -8,14 +8,14 @@
 #include "ui/Theme.h"
 #include "ui/ViewState.h"
 
-namespace sdf
+namespace sc
 {
-class SpectrogramDrawFilterEditor : public juce::AudioProcessorEditor,
+class SpectrogramCanvasEditor : public juce::AudioProcessorEditor,
                                     private juce::Timer
 {
 public:
-    explicit SpectrogramDrawFilterEditor (SpectrogramDrawFilterProcessor&);
-    ~SpectrogramDrawFilterEditor() override;
+    explicit SpectrogramCanvasEditor (SpectrogramCanvasProcessor&);
+    ~SpectrogramCanvasEditor() override;
 
     void paint (juce::Graphics&) override;
     void paintOverChildren (juce::Graphics&) override;
@@ -35,7 +35,7 @@ private:
 
     using Attachment = juce::AudioProcessorValueTreeState;
 
-    SpectrogramDrawFilterProcessor& processor;
+    SpectrogramCanvasProcessor& processor;
     Theme::LookAndFeel lookAndFeel;
     std::shared_ptr<Session> session;
 
@@ -59,6 +59,6 @@ private:
     bool showDiagnostics = false;
     juce::String diagnosticsText;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SpectrogramDrawFilterEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SpectrogramCanvasEditor)
 };
-} // namespace sdf
+} // namespace sc

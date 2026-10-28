@@ -7,7 +7,7 @@
 #include "model/FreqScale.h"
 #include "model/MaskGrid.h"
 
-namespace sdf
+namespace sc
 {
 /** The visible window onto the spectrogram, shared by the main view and the overview. */
 struct ViewState
@@ -111,4 +111,4 @@ struct ViewState
             onChange();
     }
 };
-} // namespace sdf
+} // namespace sc

@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-namespace sdf
+namespace sc
 {
 /**
     Mono recording of the audio that passed through the plugin, indexed by host-timeline sample.
@@ -83,4 +83,4 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CaptureBuffer)
 };
-} // namespace sdf
+} // namespace sc

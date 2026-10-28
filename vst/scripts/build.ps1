@@ -27,7 +27,7 @@ $cmd = "`"$vcvars`" >nul 2>&1 && cmake --preset vs2026 && cmake --build --preset
 cmd /c $cmd
 if ($LASTEXITCODE -ne 0) { throw "Build or tests failed." }
 
-$vst3 = Join-Path $root "build\SpectrogramDrawFilter_artefacts\$Config\VST3\Spectrogram Draw Filter.vst3"
+$vst3 = Join-Path $root "build\SpectrogramCanvas_artefacts\$Config\VST3\Spectrogram Canvas.vst3"
 Write-Host "Built: $vst3"
 
 if ($Install) {
@@ -37,8 +37,9 @@ if ($Install) {
     Write-Host "Installed to $dest"
 
     # Hosts pick one copy when several exist, so a stale system-wide copy would shadow this one.
-    $systemCopy = "$env:CommonProgramFiles\VST3\Spectrogram Draw Filter.vst3"
+    $systemCopy = "$env:CommonProgramFiles\VST3\Spectrogram Canvas.vst3"
     if (Test-Path $systemCopy) {
         Write-Warning "An older copy exists at '$systemCopy' and may be loaded instead. Delete it (needs admin)."
     }
+
 }

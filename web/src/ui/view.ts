@@ -26,6 +26,8 @@ const COLOR_LUT: Uint8ClampedArray = (() => {
   return lut;
 })();
 
+export interface ShareCardInfo { title: string; date: string; fileName: string; hint: string; audioEmbedded: boolean }
+
 export interface TimeFreqWindow { start: number; end: number; normLow: number; normHigh: number }
 
 export interface LoopRange { start: number; end: number; enabled: boolean }
@@ -155,6 +157,43 @@ export class SpectrogramView {
     }
     g.fillStyle = colors.marker;
     g.fillRect(x(this.startMarker), 0, 2, height);
+    return out;
+  }
+
+  /** The whole-file preview framed by a title bar on top and a caption bar underneath, for sharing. */
+  renderShareCard(info: ShareCardInfo): HTMLCanvasElement {
+    const W = 1600, H = 640, HEAD = 64, FOOT = 76, PAD = 24;
+    const out = document.createElement('canvas');
+    out.width = W; out.height = HEAD + H + FOOT;
+    const g = out.getContext('2d')!;
+    g.fillStyle = colors.panel;
+    g.fillRect(0, 0, W, out.height);
+    g.drawImage(this.renderPreview(W, H), 0, HEAD);
+    g.fillStyle = '#2a2e38';
+    g.fillRect(0, HEAD - 1, W, 1);
+    g.fillRect(0, HEAD + H, W, 1);
+
+    const text = (s: string, x: number, y: number, font: string, color: string, align: CanvasTextAlign = 'left', maxW = Infinity) => {
+      g.font = font;
+      g.fillStyle = color;
+      g.textAlign = align;
+      g.textBaseline = 'middle';
+      if (g.measureText(s).width > maxW) {
+        while (s.length > 1 && g.measureText(s + '…').width > maxW) s = s.slice(0, -1);
+        s += '…';
+      }
+      g.fillText(s, x, y);
+      return g.measureText(s).width;
+    };
+    const SANS = 'system-ui, sans-serif', MONO = 'ui-monospace, Menlo, Consolas, monospace';
+
+    const dateW = text(info.date, W - PAD, HEAD / 2, `20px ${MONO}`, colors.text, 'right');
+    text(info.title, PAD, HEAD / 2, `600 28px ${SANS}`, '#e6e8ee', 'left', W - 3 * PAD - dateW);
+
+    const badge = info.audioEmbedded ? '♪ audio inside' : '';
+    const badgeW = badge ? text(badge, W - PAD, HEAD + H + 52, `600 18px ${SANS}`, '#4cc9f0', 'right') + PAD : 0;
+    text(info.fileName, PAD, HEAD + H + 26, `600 22px ${SANS}`, '#e6e8ee', 'left', W - 2 * PAD);
+    text(info.hint, PAD, HEAD + H + 52, `18px ${SANS}`, colors.text, 'left', W - 2 * PAD - badgeW);
     return out;
   }
 

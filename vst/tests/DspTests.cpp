@@ -2,7 +2,7 @@
 
 #include "dsp/SpectralMaskProcessor.h"
 
-using namespace sdf;
+using namespace sc;
 
 namespace
 {

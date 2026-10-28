@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace sdf
+namespace sc
 {
 namespace
 {
@@ -353,4 +353,4 @@ bool MaskGrid::readFrom (juce::InputStream& in)
     bumpVersion();
     return true;
 }
-} // namespace sdf
+} // namespace sc

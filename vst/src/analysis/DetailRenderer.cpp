@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-namespace sdf
+namespace sc
 {
 namespace
 {
@@ -174,4 +174,4 @@ void DetailRenderer::request (Request r, Callback onDone)
         });
     }
 }
-} // namespace sdf
+} // namespace sc

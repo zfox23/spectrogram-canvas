@@ -4,7 +4,7 @@
 
 #include <map>
 
-namespace sdf
+namespace sc
 {
 namespace
 {
@@ -122,7 +122,7 @@ std::shared_ptr<Session> Session::forkFrom (Session& source)
 juce::File Session::getCacheDirectory()
 {
     return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
-        .getChildFile ("SpectrogramDrawFilter")
+        .getChildFile ("SpectrogramCanvas")
         .getChildFile ("captures");
 }
 
@@ -230,4 +230,4 @@ int Session::useTimeSlice()
 
     return 30;
 }
-} // namespace sdf
+} // namespace sc

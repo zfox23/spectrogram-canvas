@@ -5,7 +5,7 @@
 #include <array>
 #include <cmath>
 
-namespace sdf
+namespace sc
 {
 void renderMaskOverlay (juce::Image& image, const MaskGrid& mask, const ViewState& view, bool invert, int x0, int x1)
 {
@@ -683,4 +683,4 @@ void SpectrogramView::mouseWheelMove (const juce::MouseEvent& e, const juce::Mou
             onBrushRadiusChanged (brushRadius);
     }
 }
-} // namespace sdf
+} // namespace sc

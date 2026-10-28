@@ -11,7 +11,7 @@
 #include "capture/CaptureBuffer.h"
 #include "model/FreqScale.h"
 
-namespace sdf
+namespace sc
 {
 /**
     Magnitude spectrogram (8-bit dB) of a CaptureBuffer, at one FFT size.
@@ -83,4 +83,4 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SpectrogramStore)
 };
-} // namespace sdf
+} // namespace sc

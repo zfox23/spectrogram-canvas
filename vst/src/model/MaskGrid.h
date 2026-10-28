@@ -10,7 +10,7 @@
 #include <memory>
 #include <vector>
 
-namespace sdf
+namespace sc
 {
 /**
     The painted time-frequency mask.
@@ -138,4 +138,4 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MaskGrid)
 };
-} // namespace sdf
+} // namespace sc

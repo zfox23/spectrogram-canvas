@@ -1,6 +1,9 @@
-/** Stores the app state inside a PNG as a zlib-compressed iTXt chunk, and reads it back. */
+/** Stores the app state (and optionally the audio file) inside a PNG, and reads them back. */
 
-const KEYWORD = 'SpectrogramDrawFilter';
+const KEYWORD = 'SpectrogramCanvas';
+const LEGACY_KEYWORDS = ['SpectrogramDrawFilter']; // pre-rename exports
+// Private, ancillary, safe-to-copy chunk holding the original audio file's bytes.
+const AUDIO_CHUNK = 'sdAu';
 const SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 const CRC_TABLE = (() => {
@@ -49,8 +52,48 @@ export function base64ToBytes(text: string): Uint8Array {
   return out;
 }
 
-/** Returns a copy of `png` with `state` stored as JSON just before the IEND chunk. */
-export async function embedState(png: Uint8Array, state: unknown): Promise<Uint8Array> {
+function makeChunk(type: string, body: Uint8Array): Uint8Array {
+  const chunk = new Uint8Array(12 + body.length);
+  const view = new DataView(chunk.buffer);
+  view.setUint32(0, body.length);
+  chunk.set(new TextEncoder().encode(type), 4);
+  chunk.set(body, 8);
+  view.setUint32(8 + body.length, crc32(chunk.subarray(4, 8 + body.length)));
+  return chunk;
+}
+
+/** Returns a copy of `png` with `chunks` inserted just before the IEND chunk. */
+function insertBeforeIend(png: Uint8Array, chunks: Uint8Array[]): Uint8Array {
+  const iend = png.length - 12; // IEND is always the last chunk: 4 length + 4 type + 4 crc
+  if (ascii(png, iend + 4, iend + 8) !== 'IEND') throw new Error('Malformed PNG (no IEND chunk).');
+  const out = new Uint8Array(png.length + chunks.reduce((n, c) => n + c.length, 0));
+  out.set(png.subarray(0, iend), 0);
+  let o = iend;
+  for (const c of chunks) { out.set(c, o); o += c.length; }
+  out.set(png.subarray(iend), o);
+  return out;
+}
+
+/** Data of the first chunk of `type` for which `match` holds, or null. */
+function findChunk(png: Uint8Array, type: string, match: (data: Uint8Array) => boolean = () => true): Uint8Array | null {
+  checkSignature(png);
+  const view = new DataView(png.buffer, png.byteOffset, png.byteLength);
+  for (let o = 8; o + 12 <= png.length; ) {
+    const len = view.getUint32(o), t = ascii(png, o + 4, o + 8);
+    const start = o + 8, end = start + len;
+    if (end + 4 > png.length) break;
+    if (t === type && match(png.subarray(start, end))) return png.subarray(start, end);
+    if (t === 'IEND') break;
+    o = end + 4;
+  }
+  return null;
+}
+
+/**
+ * Returns a copy of `png` with `state` stored as JSON, and optionally the original audio file's
+ * bytes (in a private `sdAu` chunk), just before the IEND chunk.
+ */
+export async function embedState(png: Uint8Array, state: unknown, audio?: Uint8Array): Promise<Uint8Array> {
   checkSignature(png);
   const text = await pipe(new TextEncoder().encode(JSON.stringify(state)), new CompressionStream('deflate'));
   // iTXt: keyword NUL, compression flag, method, language NUL, translated keyword NUL, text
@@ -60,44 +103,26 @@ export async function embedState(png: Uint8Array, state: unknown): Promise<Uint8
   body.set([1, 0, 0, 0], head.length); // compressed (zlib), empty language tag, empty translated keyword
   body.set(text, head.length + 4);
 
-  const chunk = new Uint8Array(12 + body.length);
-  const view = new DataView(chunk.buffer);
-  view.setUint32(0, body.length);
-  chunk.set(new TextEncoder().encode('iTXt'), 4);
-  chunk.set(body, 8);
-  view.setUint32(8 + body.length, crc32(chunk.subarray(4, 8 + body.length)));
-
-  const iend = png.length - 12; // IEND is always the last chunk: 4 length + 4 type + 4 crc
-  if (ascii(png, iend + 4, iend + 8) !== 'IEND') throw new Error('Malformed PNG (no IEND chunk).');
-  const out = new Uint8Array(png.length + chunk.length);
-  out.set(png.subarray(0, iend), 0);
-  out.set(chunk, iend);
-  out.set(png.subarray(iend), iend + chunk.length);
-  return out;
+  const chunks = [makeChunk('iTXt', body)];
+  if (audio) chunks.push(makeChunk(AUDIO_CHUNK, audio));
+  return insertBeforeIend(png, chunks);
 }
 
 /** The state stored by embedState, or null if the PNG carries none. */
 export async function extractState(png: Uint8Array): Promise<unknown | null> {
-  checkSignature(png);
-  const view = new DataView(png.buffer, png.byteOffset, png.byteLength);
-  for (let o = 8; o + 12 <= png.length; ) {
-    const len = view.getUint32(o), type = ascii(png, o + 4, o + 8);
-    const start = o + 8, end = start + len;
-    if (end + 4 > png.length) break;
-    if (type === 'iTXt') {
-      const data = png.subarray(start, end);
-      const nul = data.indexOf(0);
-      if (nul > 0 && ascii(data, 0, nul) === KEYWORD) {
-        const compressed = data[nul + 1] === 1;
-        let p = nul + 3;
-        for (let n = 0; n < 2; n++) p = data.indexOf(0, p) + 1; // language tag, translated keyword
-        const payload = data.subarray(p);
-        const raw = compressed ? await pipe(payload, new DecompressionStream('deflate')) : payload;
-        return JSON.parse(new TextDecoder().decode(raw));
-      }
-    }
-    if (type === 'IEND') break;
-    o = end + 4;
-  }
-  return null;
+  const isOurs = (d: Uint8Array) => { const nul = d.indexOf(0); return nul > 0 && [KEYWORD, ...LEGACY_KEYWORDS].includes(ascii(d, 0, nul)); };
+  const data = findChunk(png, 'iTXt', isOurs);
+  if (!data) return null;
+  const nul = data.indexOf(0);
+  const compressed = data[nul + 1] === 1;
+  let p = nul + 3;
+  for (let n = 0; n < 2; n++) p = data.indexOf(0, p) + 1; // language tag, translated keyword
+  const payload = data.subarray(p);
+  const raw = compressed ? await pipe(payload, new DecompressionStream('deflate')) : payload;
+  return JSON.parse(new TextDecoder().decode(raw));
+}
+
+/** The original audio file bytes stored by embedState, or null if the PNG carries none. */
+export function extractAudio(png: Uint8Array): Uint8Array | null {
+  return findChunk(png, AUDIO_CHUNK);
 }

@@ -2,7 +2,7 @@
 
 #include "model/MaskGrid.h"
 
-using namespace sdf;
+using namespace sc;
 
 namespace
 {

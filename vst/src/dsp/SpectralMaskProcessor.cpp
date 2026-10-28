@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-namespace sdf
+namespace sc
 {
 void SpectralMaskProcessor::Engine::allocate (int fftOrder, int channels, double sr)
 {
@@ -154,4 +154,4 @@ void SpectralMaskProcessor::process (juce::AudioBuffer<float>& buffer, juce::int
     for (int ch = channels; ch < buffer.getNumChannels(); ++ch)
         buffer.clear (ch, 0, numSamples);
 }
-} // namespace sdf
+} // namespace sc

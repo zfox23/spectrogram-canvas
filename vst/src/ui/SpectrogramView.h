@@ -9,7 +9,7 @@
 #include "session/Session.h"
 #include "ui/ViewState.h"
 
-namespace sdf
+namespace sc
 {
 /** Renders the mask overlay for a view into an ARGB image (shared by both views). */
 void renderMaskOverlay (juce::Image& image, const MaskGrid& mask, const ViewState& view, bool invert, int x0, int x1);
@@ -108,4 +108,4 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SpectrogramView)
 };
-} // namespace sdf
+} // namespace sc

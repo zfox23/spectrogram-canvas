@@ -1,6 +1,6 @@
 #include "capture/CaptureBuffer.h"
 
-namespace sdf
+namespace sc
 {
 CaptureBuffer::CaptureBuffer()
     : table (new std::atomic<float*>[(size_t) kMaxChunks])
@@ -250,4 +250,4 @@ bool CaptureBuffer::loadFromWav (const juce::File& file, juce::int64 timelineSta
 
     return true;
 }
-} // namespace sdf
+} // namespace sc

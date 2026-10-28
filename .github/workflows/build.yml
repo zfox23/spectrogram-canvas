@@ -25,8 +25,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SpectrogramDrawFilter-VST3-win64
-          path: vst/build/SpectrogramDrawFilter_artefacts/Release/VST3/
+          name: SpectrogramCanvas-VST3-win64
+          path: vst/build/SpectrogramCanvas_artefacts/Release/VST3/
 
   web:
     runs-on: ubuntu-latest
@@ -48,5 +48,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SpectrogramDrawFilter-web
+          name: SpectrogramCanvas-web
           path: web/dist/

@@ -2,7 +2,7 @@
 
 #include "analysis/DetailRenderer.h"
 
-using namespace sdf;
+using namespace sc;
 
 namespace
 {

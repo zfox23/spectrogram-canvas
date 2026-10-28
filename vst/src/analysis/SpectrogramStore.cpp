@@ -3,7 +3,7 @@
 #include <array>
 #include <cmath>
 
-namespace sdf
+namespace sc
 {
 SpectrogramStore::SpectrogramStore (int fftOrder, double sr)
     : order (fftOrder),
@@ -192,4 +192,4 @@ void SpectrogramStore::render (juce::Image& image, const View& view) const
         }
     }
 }
-} // namespace sdf
+} // namespace sc

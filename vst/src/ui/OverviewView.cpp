@@ -3,7 +3,7 @@
 #include "ui/SpectrogramView.h"
 #include "ui/Theme.h"
 
-namespace sdf
+namespace sc
 {
 OverviewView::OverviewView (ViewState& v) : view (v) {}
 
@@ -205,4 +205,4 @@ void OverviewView::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseW
     if (delta != 0.0f)
         view.zoomTime (std::pow (2.0, -delta * 2.0), xToSeconds (e.position.x));
 }
-} // namespace sdf
+} // namespace sc

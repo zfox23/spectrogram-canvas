@@ -2,7 +2,7 @@
 
 #include "session/Session.h"
 
-using namespace sdf;
+using namespace sc;
 
 class SessionTests : public juce::UnitTest
 {

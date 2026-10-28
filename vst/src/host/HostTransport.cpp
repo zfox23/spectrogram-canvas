@@ -27,7 +27,7 @@ DEF_CLASS_IID (IReaperHostApplication)
 JUCE_END_IGNORE_WARNINGS_MSVC
 JUCE_END_IGNORE_WARNINGS_GCC_LIKE
 
-namespace sdf
+namespace sc
 {
 void HostTransport::setIHostApplication (Steinberg::FUnknown* host)
 {
@@ -107,4 +107,4 @@ LoopRange HostTransport::get() const
     }
     return r;
 }
-} // namespace sdf
+} // namespace sc

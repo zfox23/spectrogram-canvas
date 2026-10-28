@@ -3,7 +3,7 @@
 #include "analysis/SpectrogramStore.h"
 #include "capture/CaptureBuffer.h"
 
-using namespace sdf;
+using namespace sc;
 
 class CaptureTests : public juce::UnitTest
 {

@@ -8,7 +8,7 @@
 #include "session/Session.h"
 #include "ui/ViewState.h"
 
-namespace sdf
+namespace sc
 {
 /**
     The whole document at a glance, with the main view's window drawn on it. Drag the window
@@ -66,4 +66,4 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OverviewView)
 };
-} // namespace sdf
+} // namespace sc

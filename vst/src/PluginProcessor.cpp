@@ -1,9 +1,9 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-namespace sdf
+namespace sc
 {
-SpectrogramDrawFilterProcessor::SpectrogramDrawFilterProcessor()
+SpectrogramCanvasProcessor::SpectrogramCanvasProcessor()
     : AudioProcessor (BusesProperties()
                           .withInput ("Input", juce::AudioChannelSet::stereo(), true)
                           .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
@@ -17,14 +17,14 @@ SpectrogramDrawFilterProcessor::SpectrogramDrawFilterProcessor()
     setSession (Session::getOrCreate (Session::createId(), created));
 }
 
-SpectrogramDrawFilterProcessor::~SpectrogramDrawFilterProcessor()
+SpectrogramCanvasProcessor::~SpectrogramCanvasProcessor()
 {
     cancelPendingUpdate();
     if (session != nullptr)
         session->removeUser();
 }
 
-juce::AudioProcessorValueTreeState::ParameterLayout SpectrogramDrawFilterProcessor::createParameterLayout()
+juce::AudioProcessorValueTreeState::ParameterLayout SpectrogramCanvasProcessor::createParameterLayout()
 {
     using namespace juce;
     AudioProcessorValueTreeState::ParameterLayout layout;
@@ -53,7 +53,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout SpectrogramDrawFilterProcess
     return layout;
 }
 
-bool SpectrogramDrawFilterProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+bool SpectrogramCanvasProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
     const auto out = layouts.getMainOutputChannelSet();
     if (out != juce::AudioChannelSet::mono() && out != juce::AudioChannelSet::stereo())
@@ -62,13 +62,13 @@ bool SpectrogramDrawFilterProcessor::isBusesLayoutSupported (const BusesLayout& 
 }
 
 //==============================================================================
-std::shared_ptr<Session> SpectrogramDrawFilterProcessor::getSession() const
+std::shared_ptr<Session> SpectrogramCanvasProcessor::getSession() const
 {
     const juce::SpinLock::ScopedLockType sl (sessionLock);
     return session;
 }
 
-void SpectrogramDrawFilterProcessor::setSession (std::shared_ptr<Session> newSession)
+void SpectrogramCanvasProcessor::setSession (std::shared_ptr<Session> newSession)
 {
     newSession->requestFftOrder (fftOrderForChoice ((int) fftSizeParam->load()));
     newSession->addUser();
@@ -82,7 +82,7 @@ void SpectrogramDrawFilterProcessor::setSession (std::shared_ptr<Session> newSes
 }
 
 //==============================================================================
-void SpectrogramDrawFilterProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+void SpectrogramCanvasProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     spectral.prepare (sampleRate, juce::jmax (getTotalNumInputChannels(), getTotalNumOutputChannels()));
     spectral.setFftOrder (fftOrderForChoice ((int) fftSizeParam->load()));
@@ -96,14 +96,14 @@ void SpectrogramDrawFilterProcessor::prepareToPlay (double sampleRate, int sampl
     ++diagnostics.prepareCount;
 }
 
-void SpectrogramDrawFilterProcessor::releaseResources()
+void SpectrogramCanvasProcessor::releaseResources()
 {
     // Rendering has finished (e.g. Audacity's Apply), so stop capturing.
     if (auto s = getSession(); s != nullptr && s->isArmed() && s->capture.hasData())
         s->setArmed (false);
 }
 
-void SpectrogramDrawFilterProcessor::reset()
+void SpectrogramCanvasProcessor::reset()
 {
     spectral.reset();
     sampleCounter = 0;
@@ -111,7 +111,7 @@ void SpectrogramDrawFilterProcessor::reset()
     ++diagnostics.resetCount;
 }
 
-juce::int64 SpectrogramDrawFilterProcessor::resolveTimeline (int numSamples, bool& playing, bool& hasTransport)
+juce::int64 SpectrogramCanvasProcessor::resolveTimeline (int numSamples, bool& playing, bool& hasTransport)
 {
     bool hasPlayHead = false, hasTime = false;
     juce::int64 hostTime = 0;
@@ -153,7 +153,7 @@ juce::int64 SpectrogramDrawFilterProcessor::resolveTimeline (int numSamples, boo
     return timeline;
 }
 
-void SpectrogramDrawFilterProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+void SpectrogramCanvasProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
     const int numSamples = buffer.getNumSamples();
@@ -217,7 +217,7 @@ void SpectrogramDrawFilterProcessor::processBlock (juce::AudioBuffer<float>& buf
     spectral.process (buffer, timeline, settings);
 }
 
-std::optional<double> SpectrogramDrawFilterProcessor::getDisplayPlayPosition() const
+std::optional<double> SpectrogramCanvasProcessor::getDisplayPlayPosition() const
 {
     if (hostTransport.isConnectedToReaper())
         return hostTransport.getAudiblePlayPosition();
@@ -229,17 +229,17 @@ std::optional<double> SpectrogramDrawFilterProcessor::getDisplayPlayPosition() c
     return (double) diagnostics.timelinePosition.load() / sr;
 }
 
-void SpectrogramDrawFilterProcessor::handleAsyncUpdate()
+void SpectrogramCanvasProcessor::handleAsyncUpdate()
 {
     setLatencySamples (spectral.getLatencySamples());
 }
 
 //==============================================================================
-void SpectrogramDrawFilterProcessor::getStateInformation (juce::MemoryBlock& destData)
+void SpectrogramCanvasProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto s = getSession();
 
-    juce::ValueTree state ("SpectrogramDrawFilter");
+    juce::ValueTree state ("SpectrogramCanvas");
     state.setProperty ("version", 1, nullptr);
     state.setProperty ("session", s->id, nullptr);
     state.appendChild (parameters.copyState(), nullptr);
@@ -253,10 +253,10 @@ void SpectrogramDrawFilterProcessor::getStateInformation (juce::MemoryBlock& des
     state.writeToStream (out);
 }
 
-void SpectrogramDrawFilterProcessor::setStateInformation (const void* data, int sizeInBytes)
+void SpectrogramCanvasProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     const auto state = juce::ValueTree::readFromData (data, (size_t) sizeInBytes);
-    if (! state.hasType ("SpectrogramDrawFilter"))
+    if (! state.hasType ("SpectrogramCanvas") && ! state.hasType ("SpectrogramDrawFilter")) // pre-rename tag
         return;
 
     if (auto p = state.getChildWithName (parameters.state.getType()); p.isValid())
@@ -295,13 +295,13 @@ void SpectrogramDrawFilterProcessor::setStateInformation (const void* data, int 
     setSession (std::move (newSession));
 }
 
-juce::AudioProcessorEditor* SpectrogramDrawFilterProcessor::createEditor()
+juce::AudioProcessorEditor* SpectrogramCanvasProcessor::createEditor()
 {
-    return new SpectrogramDrawFilterEditor (*this);
+    return new SpectrogramCanvasEditor (*this);
 }
-} // namespace sdf
+} // namespace sc
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new sdf::SpectrogramDrawFilterProcessor();
+    return new sc::SpectrogramCanvasProcessor();
 }

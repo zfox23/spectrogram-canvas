@@ -10,7 +10,7 @@
 #include "capture/CaptureBuffer.h"
 #include "model/MaskGrid.h"
 
-namespace sdf
+namespace sc
 {
 /**
     Everything one "document" of the plugin works on: the painted mask, the captured audio
@@ -114,4 +114,4 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Session)
 };
-} // namespace sdf
+} // namespace sc

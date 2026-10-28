@@ -12,7 +12,7 @@
 
 #include "analysis/SpectrogramStore.h"
 
-namespace sdf
+namespace sc
 {
 /**
     Renders a full-detail spectrogram of the visible window straight from the captured audio:
@@ -74,4 +74,4 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DetailRenderer)
 };
-} // namespace sdf
+} // namespace sc

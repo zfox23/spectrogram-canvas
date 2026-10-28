@@ -2,7 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-namespace sdf::Theme
+namespace sc::Theme
 {
 inline const juce::Colour background { 0xff121419 };
 inline const juce::Colour panel { 0xff1b1e25 };
@@ -65,4 +65,4 @@ public:
         setColour (juce::Label::textColourId, text);
     }
 };
-} // namespace sdf::Theme
+} // namespace sc::Theme

@@ -1,5 +1,5 @@
 // Renders the plugin editor to a PNG after feeding it synthetic audio, so the UI can be
-// checked without a host.  Usage: SdfSnapshot <output.png> [width height]
+// checked without a host.  Usage: ScSnapshot <output.png> [width height]
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -7,7 +7,7 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 
-using namespace sdf;
+using namespace sc;
 
 namespace
 {
@@ -44,7 +44,7 @@ int main (int argc, char** argv)
     const auto options = juce::StringArray::fromTokens (argc > 4 ? argv[4] : "", ",", "");
     const double seconds = options.contains ("long") ? 180.0 : 8.0;
 
-    SpectrogramDrawFilterProcessor proc;
+    SpectrogramCanvasProcessor proc;
     const double sr = 44100.0;
     const int block = 512;
     proc.setPlayConfigDetails (2, 2, sr, block);
@@ -136,7 +136,7 @@ int main (int argc, char** argv)
     // "zoom": after the first render, zoom to 3-4 s and 400-1200 Hz (log), as a user would.
     if (options.contains ("zoom"))
     {
-        auto& vs = dynamic_cast<SpectrogramDrawFilterEditor&> (*editor).getViewState();
+        auto& vs = dynamic_cast<SpectrogramCanvasEditor&> (*editor).getViewState();
         vs.setTimeRange (3.0, 4.0);
         vs.setFreqRange (vs.scale.hzToNorm (400.0), vs.scale.hzToNorm (1200.0));
         juce::MessageManager::getInstance()->runDispatchLoopUntil (400);
