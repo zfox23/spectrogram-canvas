@@ -1,7 +1,5 @@
 # Spectrogram Canvas
 
-*Formerly Spectrogram Draw Filter.*
-
 A VST3 effect that shows the spectrogram of the audio passing through it and lets you
 **paint the time-frequency regions you want to keep**. Everything you don't paint is
 attenuated to the **Background Gain** level.
@@ -119,11 +117,6 @@ ctest --preset release
 The plugin ends up in `vst/build/SpectrogramCanvas_artefacts/Release/VST3/`. After installing,
 rescan in your host (Reaper: *Options → Preferences → Plug-ins → VST → Re-scan*;
 Audacity: *Effect → Plugin Manager → Rescan*).
-
-Spectrogram Canvas is a new plugin as far as hosts are concerned: projects that used the old
-*Spectrogram Draw Filter* won't load it in its place. Keep the old `Spectrogram Draw Filter.vst3`
-installed for those projects, or swap in Spectrogram Canvas and re-capture and re-paint.
-Old captures in `%APPDATA%\SpectrogramDrawFilter` can be deleted.
 
 `vst/build/ScSnapshot_artefacts/Release/ScSnapshot.exe out.png [width height] [invert,linear]`
 renders the editor with synthetic audio to a PNG, which is handy for checking UI changes.
